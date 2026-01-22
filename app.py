@@ -28,130 +28,113 @@ st.set_page_config(page_title="Kobo Data Hub", layout="wide")
 
 CUSTOM_CSS = """
 <style>
-/* Metric cards */
-div[data-testid="stMetric"] {
-  background: rgba(0, 90, 50, 0.65);
-  border-radius: 14px;
-  padding: 10px 12px;
-  border: 1px solid rgba(0, 90, 50, 0.65);
-}
-div[data-testid="stMetric"] * { color: white !important; }
-
-/* Título do metric (ex: "Total de registos") */
-div[data-testid="stMetricLabel"] p {
-  font-weight: 700 !important;
-  font-size: 20px !important;
-}
-
-/* Valor do metric (ex: "5") */
-div[data-testid="stMetricValue"] {
-  font-weight: 800 !important;
-  font-size: 46px !important;
-  line-height: 1 !important;
-}
-
-/* ===== Tipografia global ===== */
-html, body, [class*="stApp"]  {
-  font-size: 20px !important;   /* tamanho base equilibrado */
-  font-weight: 400 !important;  /* texto normal com peso 400 */
+/* =========================
+   1) Base tipografia (global)
+   ========================= */
+html, body, [class*="stApp"] {
+  font-size: 18px !important;
   line-height: 1.45 !important;
 }
 
-/* Títulos */
-h1 {
-  font-size: 64px !important;
+/* Títulos (st.title, st.header, st.subheader) */
+h1, [data-testid="stMarkdownContainer"] h1 {
+  font-size: 56px !important;
   font-weight: 900 !important;
-  margin-bottom: 0.2em;
+  margin-bottom: 0.25rem !important;
 }
 
-h2 {
-  font-size: 38px !important;
+h2, [data-testid="stMarkdownContainer"] h2 {
+  font-size: 34px !important;
   font-weight: 800 !important;
-  margin-top: 0.6em;
-  margin-bottom: 0.2em;
+  margin-top: 0.6rem !important;
+  margin-bottom: 0.25rem !important;
 }
 
-h3 {
+h3, [data-testid="stMarkdownContainer"] h3 {
   font-size: 22px !important;
-  font-weight: 700 !important;
-}
-
-/* Subheaders do Streamlit */
-[data-testid="stMarkdownContainer"] h1,
-[data-testid="stMarkdownContainer"] h2,
-[data-testid="stMarkdownContainer"] h3 {
   font-weight: 800 !important;
 }
 
-/* Texto normal / parágrafos */
+/* Texto normal (markdown/captions/labels) */
 [data-testid="stMarkdownContainer"] p,
 [data-testid="stMarkdownContainer"] span,
 label,
-small {
-  font-size: 15px !important;
-  font-weight: 400 !important;
+small,
+.stCaption {
+  font-size: 16px !important;
 }
 
-/* Labels dos inputs (selectbox, slider, etc.) */
+/* =========================
+   2) Cores / Cards de métricas
+   ========================= */
+div[data-testid="stMetric"] {
+  background: rgba(0, 90, 50, 0.65);
+  border: 1px solid rgba(0, 90, 50, 0.65);
+  border-radius: 14px;
+  padding: 10px 12px;
+}
+div[data-testid="stMetric"] * { color: white !important; }
+
+div[data-testid="stMetricLabel"] p {
+  font-size: 18px !important;
+  font-weight: 800 !important;
+}
+div[data-testid="stMetricValue"] {
+  font-size: 44px !important;
+  font-weight: 900 !important;
+  line-height: 1 !important;
+}
+
+/* =========================
+   3) Inputs / Tabs / Botões
+   ========================= */
+div[data-baseweb="select"] > div,
+div[data-testid="stTextInput"] > div,
+div[data-testid="stNumberInput"] > div,
+div[data-testid="stDateInput"] > div {
+  border-radius: 12px !important;
+}
+
+/* Labels dos inputs */
 div[data-baseweb="select"] label,
 div[data-testid="stSlider"] label,
 div[data-testid="stTextInput"] label,
 div[data-testid="stNumberInput"] label,
 div[data-testid="stDateInput"] label {
-  font-size: 15px !important;
-  font-weight: 700 !important; /* destacar rótulos de inputs */
+  font-size: 16px !important;
+  font-weight: 800 !important;
 }
 
 /* Tabs */
 button[data-baseweb="tab"] {
   font-size: 16px !important;
-  font-weight: 700 !important;
+  font-weight: 800 !important;
 }
 
 /* Botões */
-button[kind="primary"],
-button[kind="secondary"],
 .stButton > button {
-  font-size: 15px !important;
-  font-weight: 700 !important; /* botões em bold para chamar atenção */
+  font-size: 16px !important;
+  font-weight: 800 !important;
   border-radius: 10px !important;
 }
 
-/* Inputs arredondados */
-div[data-baseweb="select"] > div,
-div[data-testid="stTextInput"] > div,
-div[data-testid="stNumberInput"] > div {
-  border-radius: 12px !important;
-}
-
-/* Dataframe container */
+/* =========================
+   4) Dataframes
+   ========================= */
 div[data-testid="stDataFrame"] {
-  border-radius: 10px;
+  border-radius: 12px;
   overflow: hidden;
 }
-
-/* Dataframe: reduzir um pouco a fonte e destacar cabeçalho */
 div[data-testid="stDataFrame"] table {
-  font-size: 13.5px !important;
+  font-size: 14px !important;
 }
 div[data-testid="stDataFrame"] thead th {
-  font-weight: 700 !important;
-  background: rgba(0,0,0,0.02) !important;
-}
-
-/* Pequeninos ajustes para legendas / notas */
-small, .css-1lcbmhc { /* streamlit internal classes podem variar */
-  font-size: 13px !important;
-  color: rgba(0,0,0,0.75) !important;
-  font-weight: 400 !important;
-}
-
-/* Ajuste para textos de caption e avisos menos intrusivos */
-.stCaption, .stInfo, .stWarning {
-  font-size: 14px !important;
+  font-weight: 800 !important;
+  background: rgba(0,0,0,0.03) !important;
 }
 </style>
 """
+
 st.markdown(CUSTOM_CSS, unsafe_allow_html=True)
 
 # =========================
@@ -890,6 +873,7 @@ with tab_tabela:
         file_name="kobo_dados_filtrados.xlsx",
         mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
     )
+
 
 
 
