@@ -49,6 +49,68 @@ div[data-testid="stMetricValue"] {
   font-size: 46px !important;
 }
 
+/* ===== Tipografia global ===== */
+html, body, [class*="stApp"]  {
+  font-size: 18px !important;   /* tamanho base */
+  font-weight: 600 !important;  /* deixa quase tudo "bold" */
+}
+
+/* Títulos */
+h1 {
+  font-size: 44px !important;
+  font-weight: 900 !important;
+}
+
+h2 {
+  font-size: 32px !important;
+  font-weight: 850 !important;
+}
+
+h3 {
+  font-size: 24px !important;
+  font-weight: 800 !important;
+}
+
+/* Subheaders do Streamlit */
+[data-testid="stMarkdownContainer"] h1,
+[data-testid="stMarkdownContainer"] h2,
+[data-testid="stMarkdownContainer"] h3 {
+  font-weight: 900 !important;
+}
+
+/* Texto normal / parágrafos */
+[data-testid="stMarkdownContainer"] p,
+[data-testid="stMarkdownContainer"] span,
+label,
+small {
+  font-size: 18px !important;
+  font-weight: 650 !important;
+}
+
+/* Labels dos inputs (selectbox, slider, etc.) */
+div[data-baseweb="select"] label,
+div[data-testid="stSlider"] label,
+div[data-testid="stTextInput"] label,
+div[data-testid="stNumberInput"] label,
+div[data-testid="stDateInput"] label {
+  font-size: 18px !important;
+  font-weight: 800 !important;
+}
+
+/* Tabs */
+button[data-baseweb="tab"] {
+  font-size: 18px !important;
+  font-weight: 800 !important;
+}
+
+/* Botões */
+button[kind="primary"],
+button[kind="secondary"],
+.stButton > button {
+  font-size: 18px !important;
+  font-weight: 800 !important;
+}
+
 /* Inputs arredondados */
 div[data-baseweb="select"] > div,
 div[data-testid="stTextInput"] > div,
@@ -801,6 +863,7 @@ with tab_tabela:
         file_name="kobo_dados_filtrados.xlsx",
         mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
     )
+
 
 
 
