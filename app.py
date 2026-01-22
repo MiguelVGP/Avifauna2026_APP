@@ -30,7 +30,6 @@ CUSTOM_CSS = """
 <style>
 /* Metric cards */
 div[data-testid="stMetric"] {
-  background: rgba(245,124,0,0.35);
   border-radius: 14px;
   padding: 10px 12px;
   border: 1px solid rgba(245,124,0,0.35);
@@ -789,6 +788,7 @@ with tab_tabela:
         file_name="kobo_dados_filtrados.xlsx",
         mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
     )
+
 
 
 
