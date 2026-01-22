@@ -51,7 +51,7 @@ h2, [data-testid="stMarkdownContainer"] h2 {
 }
 
 h3, [data-testid="stMarkdownContainer"] h3 {
-  font-size: 22px !important;
+  font-size: 32px !important;
   font-weight: 800 !important;
 }
 
@@ -873,6 +873,7 @@ with tab_tabela:
         file_name="kobo_dados_filtrados.xlsx",
         mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
     )
+
 
 
 
