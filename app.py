@@ -461,7 +461,7 @@ with tab_outputs:
                 orientation="h",
                 hover_data={"Total indivíduos": True, "Abundância média (N/52)": ":.2f"},
                 title=f"Abundância média por espécie — {local_plot}",
-                color_discrete_sequence=["#FF6600"],
+                color_discrete_sequence=["#02eb8e"],
             )
             fig.update_layout(
                 height=700,
@@ -591,7 +591,7 @@ with tab_outputs:
 
             n_segments = 48
             step = 360 / n_segments
-            orange = "#00F715"
+            orange = "#02eb8e"
             gray = "#E0E0E0"
 
             idx = 0
@@ -767,6 +767,7 @@ with tab_tabela:
         file_name="kobo_dados_filtrados.xlsx",
         mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
     )
+
 
 
 
