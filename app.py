@@ -40,7 +40,7 @@ div[data-testid="stMetric"] * { color: white !important; }
 /* Título do metric (ex: "Total de registos") */
 div[data-testid="stMetricLabel"] p {
   font-weight: 700 !important;
-  font-size: 16px !important;
+  font-size: 20px !important;
 }
 
 /* Valor do metric (ex: "5") */
@@ -890,6 +890,7 @@ with tab_tabela:
         file_name="kobo_dados_filtrados.xlsx",
         mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
     )
+
 
 
 
