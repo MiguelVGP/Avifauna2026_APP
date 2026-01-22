@@ -30,52 +30,57 @@ CUSTOM_CSS = """
 <style>
 /* Metric cards */
 div[data-testid="stMetric"] {
-  background: rgba(0, 90, 50, 0.55);
+  background: rgba(0, 90, 50, 0.65);
   border-radius: 14px;
   padding: 10px 12px;
-  border: 1px solid rgba(0, 90, 50, 0.55);
+  border: 1px solid rgba(0, 90, 50, 0.65);
 }
 div[data-testid="stMetric"] * { color: white !important; }
 
 /* Título do metric (ex: "Total de registos") */
 div[data-testid="stMetricLabel"] p {
   font-weight: 700 !important;
-  font-size: 18px !important;
+  font-size: 16px !important;
 }
 
 /* Valor do metric (ex: "5") */
 div[data-testid="stMetricValue"] {
   font-weight: 800 !important;
   font-size: 46px !important;
+  line-height: 1 !important;
 }
 
 /* ===== Tipografia global ===== */
 html, body, [class*="stApp"]  {
-  font-size: 18px !important;   /* tamanho base */
-  font-weight: 600 !important;  /* deixa quase tudo "bold" */
+  font-size: 16px !important;   /* tamanho base equilibrado */
+  font-weight: 400 !important;  /* texto normal com peso 400 */
+  line-height: 1.45 !important;
 }
 
 /* Títulos */
 h1 {
   font-size: 44px !important;
   font-weight: 900 !important;
+  margin-bottom: 0.2em;
 }
 
 h2 {
   font-size: 32px !important;
-  font-weight: 850 !important;
+  font-weight: 800 !important;
+  margin-top: 0.6em;
+  margin-bottom: 0.2em;
 }
 
 h3 {
-  font-size: 24px !important;
-  font-weight: 800 !important;
+  font-size: 22px !important;
+  font-weight: 700 !important;
 }
 
 /* Subheaders do Streamlit */
 [data-testid="stMarkdownContainer"] h1,
 [data-testid="stMarkdownContainer"] h2,
 [data-testid="stMarkdownContainer"] h3 {
-  font-weight: 900 !important;
+  font-weight: 800 !important;
 }
 
 /* Texto normal / parágrafos */
@@ -83,8 +88,8 @@ h3 {
 [data-testid="stMarkdownContainer"] span,
 label,
 small {
-  font-size: 18px !important;
-  font-weight: 650 !important;
+  font-size: 15px !important;
+  font-weight: 400 !important;
 }
 
 /* Labels dos inputs (selectbox, slider, etc.) */
@@ -93,22 +98,23 @@ div[data-testid="stSlider"] label,
 div[data-testid="stTextInput"] label,
 div[data-testid="stNumberInput"] label,
 div[data-testid="stDateInput"] label {
-  font-size: 18px !important;
-  font-weight: 800 !important;
+  font-size: 15px !important;
+  font-weight: 700 !important; /* destacar rótulos de inputs */
 }
 
 /* Tabs */
 button[data-baseweb="tab"] {
-  font-size: 18px !important;
-  font-weight: 800 !important;
+  font-size: 16px !important;
+  font-weight: 700 !important;
 }
 
 /* Botões */
 button[kind="primary"],
 button[kind="secondary"],
 .stButton > button {
-  font-size: 18px !important;
-  font-weight: 800 !important;
+  font-size: 15px !important;
+  font-weight: 700 !important; /* botões em bold para chamar atenção */
+  border-radius: 10px !important;
 }
 
 /* Inputs arredondados */
@@ -120,8 +126,29 @@ div[data-testid="stNumberInput"] > div {
 
 /* Dataframe container */
 div[data-testid="stDataFrame"] {
-  border-radius: 14px;
+  border-radius: 10px;
   overflow: hidden;
+}
+
+/* Dataframe: reduzir um pouco a fonte e destacar cabeçalho */
+div[data-testid="stDataFrame"] table {
+  font-size: 13.5px !important;
+}
+div[data-testid="stDataFrame"] thead th {
+  font-weight: 700 !important;
+  background: rgba(0,0,0,0.02) !important;
+}
+
+/* Pequeninos ajustes para legendas / notas */
+small, .css-1lcbmhc { /* streamlit internal classes podem variar */
+  font-size: 13px !important;
+  color: rgba(0,0,0,0.75) !important;
+  font-weight: 400 !important;
+}
+
+/* Ajuste para textos de caption e avisos menos intrusivos */
+.stCaption, .stInfo, .stWarning {
+  font-size: 14px !important;
 }
 </style>
 """
@@ -591,7 +618,7 @@ with tab_outputs:
         else:
             base = df_amostras[[LOCAL_COL, SPEC_COL, INDIV_COL]].copy()
             base[LOCAL_COL] = base[LOCAL_COL].fillna("").astype(str).str.strip()
-            base[SPEC_COL]  = base[SPEC_COL].fillna("").astype(str).str.strip()
+            base[SPEC_COL]  = base[SPEC_COL].fillna("").astype(str).str_strip()
             base[INDIV_COL] = pd.to_numeric(base[INDIV_COL], errors="coerce").fillna(0)
 
             if local_sel == "Total":
@@ -863,6 +890,12 @@ with tab_tabela:
         file_name="kobo_dados_filtrados.xlsx",
         mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
     )
+
+
+
+
+
+
 
 
 
