@@ -450,7 +450,7 @@ with tab_outputs:
             agg["Abundância média (N/52)"] = agg["Total indivíduos"] / 52.0
 
             # ordenar e limitar (opcional)
-            top_n = st.slider("Top N espécies", min_value=3, max_value=18, value=10, step=3, key="abund_topn")
+            top_n = st.slider("Top N espécies", min_value=3, max_value=18, value=10, step=1, key="abund_topn")
             agg = agg.sort_values("Abundância média (N/52)", ascending=True).tail(top_n)
 
             # gráfico horizontal interativo (definimos fonte/tamanho aqui)
@@ -767,6 +767,7 @@ with tab_tabela:
         file_name="kobo_dados_filtrados.xlsx",
         mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
     )
+
 
 
 
