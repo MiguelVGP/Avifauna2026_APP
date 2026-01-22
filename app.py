@@ -668,7 +668,7 @@ with tab_outputs:
     else:
         # base (normalizada)
         base = df_amostras[[WEEK_COL, LOCAL_COL, SPEC_COL]].copy()
-        base[LOCAL_COL] = base[LOCAL_COL].fillna(""").astype(str).str.strip()
+        base[LOCAL_COL] = base[LOCAL_COL].fillna("").astype(str).str.strip()
         base[SPEC_COL] = base[SPEC_COL].fillna("").astype(str).str.strip()
         base[WEEK_COL] = pd.to_numeric(base[WEEK_COL], errors="coerce")
 
