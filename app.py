@@ -682,7 +682,7 @@ with tab_outputs:
 
             st.plotly_chart(fig, use_container_width=True)
 
-            st.caption("Laranja = há registo nessa semana (dados/N_Semana) • Cinzento = sem registos")
+            #st.caption("Laranja = há registo nessa semana (dados/N_Semana) • Cinzento = sem registos")
 
 
 # =========================
@@ -789,6 +789,7 @@ with tab_tabela:
         file_name="kobo_dados_filtrados.xlsx",
         mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
     )
+
 
 
 
