@@ -37,6 +37,18 @@ div[data-testid="stMetric"] {
 }
 div[data-testid="stMetric"] * { color: white !important; }
 
+/* Título do metric (ex: "Total de registos") */
+div[data-testid="stMetricLabel"] p {
+  font-weight: 700 !important;
+  font-size: 18px !important;
+}
+
+/* Valor do metric (ex: "5") */
+div[data-testid="stMetricValue"] {
+  font-weight: 800 !important;
+  font-size: 46px !important;
+}
+
 /* Inputs arredondados */
 div[data-baseweb="select"] > div,
 div[data-testid="stTextInput"] > div,
@@ -789,6 +801,7 @@ with tab_tabela:
         file_name="kobo_dados_filtrados.xlsx",
         mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
     )
+
 
 
 
