@@ -610,7 +610,7 @@ with tab_outputs:
 
             n_segments = 48
             step = 360 / n_segments
-            orange = "#F57C00"
+            orange = "#00F715"
             gray = "#E0E0E0"
 
             idx = 0
@@ -789,6 +789,7 @@ with tab_tabela:
         file_name="kobo_dados_filtrados.xlsx",
         mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
     )
+
 
 
 
