@@ -1,0 +1,7 @@
+[theme]
+base="light"
+primaryColor="#F57C00"              # laranja
+backgroundColor="#A84300"           # laranja
+secondaryBackgroundColor="#F3E5D8"  # castanho claro / areia
+textColor="#3E2723"                 # castanho escuro
+font="sans serif"
