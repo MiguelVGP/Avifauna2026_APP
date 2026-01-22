@@ -22,12 +22,119 @@ APP_PASSWORD = "teste"
 DEFAULT_LIMIT = 5000
 
 # =========================
-# UI / Config (sem CSS)
+# UI / Branding (Orange theme tweaks)
 # =========================
 st.set_page_config(page_title="Kobo Data Hub", layout="wide")
 
-# Note: sem CSS, usamos os componentes do Streamlit (títulos, subheaders, markdown bold)
-# e definimos fontes/tamanhos nos gráficos Plotly quando aplicável.
+CUSTOM_CSS = """
+<style>
+/* =========================
+   1) Base tipografia (global)
+   ========================= */
+html, body, [class*="stApp"] {
+  font-size: 18px !important;
+  line-height: 1.45 !important;
+}
+
+/* Títulos (st.title, st.header, st.subheader) */
+h1, [data-testid="stMarkdownContainer"] h1 {
+  font-size: 56px !important;
+  font-weight: 900 !important;
+  margin-bottom: 0.25rem !important;
+}
+
+h2, [data-testid="stMarkdownContainer"] h2 {
+  font-size: 34px !important;
+  font-weight: 800 !important;
+  margin-top: 0.6rem !important;
+  margin-bottom: 0.25rem !important;
+}
+
+h3, [data-testid="stMarkdownContainer"] h3 {
+  font-size: 32px !important;
+  font-weight: 800 !important;
+}
+
+/* Texto normal (markdown/captions/labels) */
+[data-testid="stMarkdownContainer"] p,
+[data-testid="stMarkdownContainer"] span,
+label,
+small,
+.stCaption {
+  font-size: 16px !important;
+}
+
+/* =========================
+   2) Cores / Cards de métricas
+   ========================= */
+div[data-testid="stMetric"] {
+  background: rgba(0, 90, 50, 0.65);
+  border: 1px solid rgba(0, 90, 50, 0.65);
+  border-radius: 14px;
+  padding: 10px 12px;
+}
+div[data-testid="stMetric"] * { color: white !important; }
+
+div[data-testid="stMetricLabel"] p {
+  font-size: 18px !important;
+  font-weight: 800 !important;
+}
+div[data-testid="stMetricValue"] {
+  font-size: 44px !important;
+  font-weight: 900 !important;
+  line-height: 1 !important;
+}
+
+/* =========================
+   3) Inputs / Tabs / Botões
+   ========================= */
+div[data-baseweb="select"] > div,
+div[data-testid="stTextInput"] > div,
+div[data-testid="stNumberInput"] > div,
+div[data-testid="stDateInput"] > div {
+  border-radius: 12px !important;
+}
+
+/* Labels dos inputs */
+div[data-baseweb="select"] label,
+div[data-testid="stSlider"] label,
+div[data-testid="stTextInput"] label,
+div[data-testid="stNumberInput"] label,
+div[data-testid="stDateInput"] label {
+  font-size: 16px !important;
+  font-weight: 800 !important;
+}
+
+/* Tabs */
+button[data-baseweb="tab"] {
+  font-size: 16px !important;
+  font-weight: 800 !important;
+}
+
+/* Botões */
+.stButton > button {
+  font-size: 16px !important;
+  font-weight: 800 !important;
+  border-radius: 10px !important;
+}
+
+/* =========================
+   4) Dataframes
+   ========================= */
+div[data-testid="stDataFrame"] {
+  border-radius: 12px;
+  overflow: hidden;
+}
+div[data-testid="stDataFrame"] table {
+  font-size: 14px !important;
+}
+div[data-testid="stDataFrame"] thead th {
+  font-weight: 800 !important;
+  background: rgba(0,0,0,0.03) !important;
+}
+</style>
+"""
+st.markdown(CUSTOM_CSS, unsafe_allow_html=True)
 
 # =========================
 # Login gate
@@ -72,6 +179,20 @@ def normalize_complex_columns(df: pd.DataFrame) -> pd.DataFrame:
         except Exception:
             df2[c] = df2[c].astype(str)
     return df2
+
+
+def try_parse_dates(series: pd.Series) -> pd.Series:
+    """Try a few common date formats first, then fallback to pandas inference.
+    This reduces pandas warnings about ambiguous formats.
+    """
+    formats = ["%Y-%m-%d", "%d-%m-%Y", "%d/%m/%Y", "%Y/%m/%d"]
+    for fmt in formats:
+        parsed = pd.to_datetime(series, format=fmt, errors="coerce", dayfirst=True)
+        if parsed.notna().any():
+            return parsed
+    # fallback (may still parse various forms)
+    return pd.to_datetime(series, dayfirst=True, errors="coerce")
+
 
 def parse_amostragem_cell(x):
     if x is None or (isinstance(x, float) and pd.isna(x)):
@@ -182,7 +303,7 @@ def apply_filters(df: pd.DataFrame, ui_state: dict) -> pd.DataFrame:
 
         elif ftype == "date":
             start_date, end_date = val
-            s = pd.to_datetime(out[col], errors="coerce", utc=False)
+            s = try_parse_dates(out[col])
             mask = s.dt.date.between(start_date, end_date)
             out = out[mask]
 
@@ -191,7 +312,6 @@ def apply_filters(df: pd.DataFrame, ui_state: dict) -> pd.DataFrame:
 # =========================
 # Header + Controls
 # =========================
-# Usamos títulos/markdown em vez de CSS
 st.title("Avifauna 2026 🐦 Kobo Data Hub")
 
 b1, b2 = st.columns(2)
@@ -211,7 +331,7 @@ limit = DEFAULT_LIMIT
 # =========================
 # Load Data
 # =========================
-with st.spinner("A carregar dados do Kobo..."):
+with st.spinner("A carregar dados do Kobo..."):  
     try:
         df_raw = fetch_kobo_raw(limit=int(limit))
     except requests.HTTPError as e:
@@ -223,9 +343,9 @@ with st.spinner("A carregar dados do Kobo..."):
         st.exception(e)
         st.stop()
 
-df = prepare_submissions_df(df_raw)
-df_amostras_raw = explode_amostragem(df_raw, amostragem_col="Amostragem")
-df_amostras = normalize_complex_columns(df_amostras_raw) if not df_amostras_raw.empty else pd.DataFrame()
+    df = prepare_submissions_df(df_raw)
+    df_amostras_raw = explode_amostragem(df_raw, amostragem_col="Amostragem")
+    df_amostras = normalize_complex_columns(df_amostras_raw) if not df_amostras_raw.empty else pd.DataFrame()
 
 # =========================
 # Tabs
@@ -307,7 +427,6 @@ with tab_outputs:
     k1, k2 = st.columns(2)
 
     total_registos = len(df_amostras) if not df_amostras.empty else len(df)
-    # mostramos os números com markdown para realçar quando necessário
     k1.metric("Total de registos", f"{total_registos:,}".replace(",", " "))
 
     semana_mais_recente = None
@@ -335,7 +454,7 @@ with tab_outputs:
                 .reset_index()
             )
             registos_por_local.columns = ["Local", "Nº de registos"]
-            st.dataframe(registos_por_local, use_container_width=True, height=260)
+            st.dataframe(registos_por_local, width='stretch', height=260)
 
     with c2:
         st.subheader("🦉 Espécie mais observada por local (por Nº indivíduos)")
@@ -356,7 +475,7 @@ with tab_outputs:
                 SPEC_COL: "Espécie mais observada"
             })
 
-            st.dataframe(top, use_container_width=True, height=260)
+            st.dataframe(top, width='stretch', height=260)
 
     st.divider()
 
@@ -394,7 +513,7 @@ with tab_outputs:
                 .reset_index(drop=True)
             )
 
-        st.dataframe(tabela, use_container_width=True, height=420)
+        st.dataframe(tabela, width='stretch', height=420)
 
     # ===== Download Excel (para o local selecionado) =====
     buffer = io.BytesIO()
@@ -450,10 +569,10 @@ with tab_outputs:
             agg["Abundância média (N/52)"] = agg["Total indivíduos"] / 52.0
 
             # ordenar e limitar (opcional)
-            top_n = st.slider("Top N espécies", min_value=3, max_value=18, value=10, step=1, key="abund_topn")
+            top_n = st.slider("Top N espécies", min_value=3, max_value=18, value=10, step=3, key="abund_topn")
             agg = agg.sort_values("Abundância média (N/52)", ascending=True).tail(top_n)
 
-            # gráfico horizontal interativo (definimos fonte/tamanho aqui)
+            # gráfico horizontal interativo
             fig = px.bar(
                 agg,
                 x="Abundância média (N/52)",
@@ -461,16 +580,16 @@ with tab_outputs:
                 orientation="h",
                 hover_data={"Total indivíduos": True, "Abundância média (N/52)": ":.2f"},
                 title=f"Abundância média por espécie — {local_plot}",
-                color_discrete_sequence=["#02eb8e"],
             )
             fig.update_layout(
                 height=700,
                 margin=dict(l=20, r=20, t=60, b=20),
-                font=dict(size=12, family="Helvetica", color="#111111"),
-                title=dict(font=dict(size=16)),
             )
 
-            st.plotly_chart(fig, use_container_width=True)
+            # opcional: define cor (p.ex. laranja) -> usuário pode alterar manualmente se quiser
+            # fig.update_traces(marker_color="#FF6600")
+
+            st.plotly_chart(fig, width='stretch')
             st.divider()
 
     st.subheader("Lista de Espécies (PDF)")
@@ -549,7 +668,7 @@ with tab_outputs:
     else:
         # base (normalizada)
         base = df_amostras[[WEEK_COL, LOCAL_COL, SPEC_COL]].copy()
-        base[LOCAL_COL] = base[LOCAL_COL].fillna("").astype(str).str.strip()
+        base[LOCAL_COL] = base[LOCAL_COL].fillna(""").astype(str).str.strip()
         base[SPEC_COL] = base[SPEC_COL].fillna("").astype(str).str.strip()
         base[WEEK_COL] = pd.to_numeric(base[WEEK_COL], errors="coerce")
 
@@ -565,7 +684,7 @@ with tab_outputs:
                 local_sel = st.selectbox("Local", locais_opts, index=0, key="pa_local_sel")
 
             # lista dinâmica de espécies (do próprio dataset)
-            especies = sorted([s for s in base[SPEC_COL].dropna().astype(str).unique() if s.strip() != ""])
+            especies = sorted([s for s in base[SPEC_COL].dropna().astype(str).unique() if s.strip() != ""])            
             with colB:
                 especie_sel = st.selectbox("Espécie", especies, index=0, key="pa_especie_sel")
 
@@ -591,7 +710,7 @@ with tab_outputs:
 
             n_segments = 48
             step = 360 / n_segments
-            orange = "#02eb8e"
+            orange = "#00F715"
             gray = "#E0E0E0"
 
             idx = 0
@@ -618,13 +737,13 @@ with tab_outputs:
                 ]
             )
 
-            # contorno por mês
+            # ===== NOVO: contorno preto por fora a agrupar cada mês (12 blocos de 4 semanas) =====
             month_centers = [((m - 1) * 4 * step) + (2 * step) for m in range(1, 13)]
             month_width = 4 * step
 
             fig.add_trace(
                 go.Barpolar(
-                    r=[1.00] * 12,
+                    r=[1.00] * 12,  # ligeiramente fora do anel principal
                     theta=month_centers,
                     width=[month_width] * 12,
                     marker=dict(
@@ -636,6 +755,7 @@ with tab_outputs:
                 )
             )
 
+            # ticks dos meses (1 label por mês, no centro do bloco de 4 semanas)
             month_tickvals = month_centers
             month_ticktext = meses_nome
 
@@ -648,7 +768,7 @@ with tab_outputs:
                         tickmode="array",
                         tickvals=month_tickvals,
                         ticktext=month_ticktext,
-                        tickfont=dict(size=14, color="#111111"),
+                        tickfont=dict(size=14, color="rgba(255,255,255,0.45)"),
                         rotation=0,
                         direction="clockwise",
                         showline=False,
@@ -658,10 +778,12 @@ with tab_outputs:
                 showlegend=False,
                 height=650,
                 margin=dict(l=20, r=20, t=70, b=20),
-                font=dict(size=12, family="Helvetica", color="#111111"),
             )
 
-            st.plotly_chart(fig, use_container_width=True)
+            st.plotly_chart(fig, width='stretch')
+
+            #st.caption("Laranja = há registo nessa semana (dados/N_Semana) • Cinzento = sem registos")
+
 
 # =========================
 # TABLE TAB
@@ -711,7 +833,7 @@ with tab_tabela:
                             rng = st.slider(colname, min_value=minv, max_value=maxv, value=(minv, maxv))
                             ui_state[colname] = {"type": "numeric", "value": rng}
                 else:
-                    dt = pd.to_datetime(s, errors="coerce", utc=False)
+                    dt = try_parse_dates(s)
                     valid = dt.dropna()
 
                     if len(valid) >= max(10, int(0.2 * len(s.dropna()))) and not valid.empty:
@@ -754,7 +876,7 @@ with tab_tabela:
 
     show_cols = st.multiselect("Colunas visíveis", options=all_cols, default=default_show)
 
-    st.dataframe(filtered[show_cols], use_container_width=True, height=520)
+    st.dataframe(filtered[show_cols], width='stretch', height=520)
 
     buffer = io.BytesIO()
     with pd.ExcelWriter(buffer, engine="openpyxl") as writer:
@@ -769,26 +891,4 @@ with tab_tabela:
     )
 
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+    
