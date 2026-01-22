@@ -52,20 +52,20 @@ div[data-testid="stMetricValue"] {
 
 /* ===== Tipografia global ===== */
 html, body, [class*="stApp"]  {
-  font-size: 16px !important;   /* tamanho base equilibrado */
+  font-size: 20px !important;   /* tamanho base equilibrado */
   font-weight: 400 !important;  /* texto normal com peso 400 */
   line-height: 1.45 !important;
 }
 
 /* Títulos */
 h1 {
-  font-size: 44px !important;
+  font-size: 64px !important;
   font-weight: 900 !important;
   margin-bottom: 0.2em;
 }
 
 h2 {
-  font-size: 32px !important;
+  font-size: 38px !important;
   font-weight: 800 !important;
   margin-top: 0.6em;
   margin-bottom: 0.2em;
@@ -890,6 +890,7 @@ with tab_tabela:
         file_name="kobo_dados_filtrados.xlsx",
         mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
     )
+
 
 
 
