@@ -22,120 +22,12 @@ APP_PASSWORD = "teste"
 DEFAULT_LIMIT = 5000
 
 # =========================
-# UI / Branding (Orange theme tweaks)
+# UI / Config (sem CSS)
 # =========================
 st.set_page_config(page_title="Kobo Data Hub", layout="wide")
 
-CUSTOM_CSS = """
-<style>
-/* =========================
-   1) Base tipografia (global)
-   ========================= */
-html, body, [class*="stApp"] {
-  font-size: 18px !important;
-  line-height: 1.45 !important;
-}
-
-/* Títulos (st.title, st.header, st.subheader) */
-h1, [data-testid="stMarkdownContainer"] h1 {
-  font-size: 56px !important;
-  font-weight: 900 !important;
-  margin-bottom: 0.25rem !important;
-}
-
-h2, [data-testid="stMarkdownContainer"] h2 {
-  font-size: 34px !important;
-  font-weight: 800 !important;
-  margin-top: 0.6rem !important;
-  margin-bottom: 0.25rem !important;
-}
-
-h3, [data-testid="stMarkdownContainer"] h3 {
-  font-size: 32px !important;
-  font-weight: 800 !important;
-}
-
-/* Texto normal (markdown/captions/labels) */
-[data-testid="stMarkdownContainer"] p,
-[data-testid="stMarkdownContainer"] span,
-label,
-small,
-.stCaption {
-  font-size: 16px !important;
-}
-
-/* =========================
-   2) Cores / Cards de métricas
-   ========================= */
-div[data-testid="stMetric"] {
-  background: rgba(0, 90, 50, 0.65);
-  border: 1px solid rgba(0, 90, 50, 0.65);
-  border-radius: 14px;
-  padding: 10px 12px;
-}
-div[data-testid="stMetric"] * { color: white !important; }
-
-div[data-testid="stMetricLabel"] p {
-  font-size: 18px !important;
-  font-weight: 800 !important;
-}
-div[data-testid="stMetricValue"] {
-  font-size: 44px !important;
-  font-weight: 900 !important;
-  line-height: 1 !important;
-}
-
-/* =========================
-   3) Inputs / Tabs / Botões
-   ========================= */
-div[data-baseweb="select"] > div,
-div[data-testid="stTextInput"] > div,
-div[data-testid="stNumberInput"] > div,
-div[data-testid="stDateInput"] > div {
-  border-radius: 12px !important;
-}
-
-/* Labels dos inputs */
-div[data-baseweb="select"] label,
-div[data-testid="stSlider"] label,
-div[data-testid="stTextInput"] label,
-div[data-testid="stNumberInput"] label,
-div[data-testid="stDateInput"] label {
-  font-size: 16px !important;
-  font-weight: 800 !important;
-}
-
-/* Tabs */
-button[data-baseweb="tab"] {
-  font-size: 16px !important;
-  font-weight: 800 !important;
-}
-
-/* Botões */
-.stButton > button {
-  font-size: 16px !important;
-  font-weight: 800 !important;
-  border-radius: 10px !important;
-}
-
-/* =========================
-   4) Dataframes
-   ========================= */
-div[data-testid="stDataFrame"] {
-  border-radius: 12px;
-  overflow: hidden;
-}
-div[data-testid="stDataFrame"] table {
-  font-size: 14px !important;
-}
-div[data-testid="stDataFrame"] thead th {
-  font-weight: 800 !important;
-  background: rgba(0,0,0,0.03) !important;
-}
-</style>
-"""
-
-st.markdown(CUSTOM_CSS, unsafe_allow_html=True)
+# Note: sem CSS, usamos os componentes do Streamlit (títulos, subheaders, markdown bold)
+# e definimos fontes/tamanhos nos gráficos Plotly quando aplicável.
 
 # =========================
 # Login gate
@@ -299,6 +191,7 @@ def apply_filters(df: pd.DataFrame, ui_state: dict) -> pd.DataFrame:
 # =========================
 # Header + Controls
 # =========================
+# Usamos títulos/markdown em vez de CSS
 st.title("Avifauna 2026 🐦 Kobo Data Hub")
 
 b1, b2 = st.columns(2)
@@ -414,6 +307,7 @@ with tab_outputs:
     k1, k2 = st.columns(2)
 
     total_registos = len(df_amostras) if not df_amostras.empty else len(df)
+    # mostramos os números com markdown para realçar quando necessário
     k1.metric("Total de registos", f"{total_registos:,}".replace(",", " "))
 
     semana_mais_recente = None
@@ -559,7 +453,7 @@ with tab_outputs:
             top_n = st.slider("Top N espécies", min_value=3, max_value=18, value=10, step=3, key="abund_topn")
             agg = agg.sort_values("Abundância média (N/52)", ascending=True).tail(top_n)
 
-            # gráfico horizontal interativo
+            # gráfico horizontal interativo (definimos fonte/tamanho aqui)
             fig = px.bar(
                 agg,
                 x="Abundância média (N/52)",
@@ -571,6 +465,8 @@ with tab_outputs:
             fig.update_layout(
                 height=700,
                 margin=dict(l=20, r=20, t=60, b=20),
+                font=dict(size=12, family="Helvetica", color="#111111"),
+                title=dict(font=dict(size=16)),
             )
 
             st.plotly_chart(fig, use_container_width=True)
@@ -601,7 +497,7 @@ with tab_outputs:
         else:
             base = df_amostras[[LOCAL_COL, SPEC_COL, INDIV_COL]].copy()
             base[LOCAL_COL] = base[LOCAL_COL].fillna("").astype(str).str.strip()
-            base[SPEC_COL]  = base[SPEC_COL].fillna("").astype(str).str_strip()
+            base[SPEC_COL]  = base[SPEC_COL].fillna("").astype(str).str.strip()
             base[INDIV_COL] = pd.to_numeric(base[INDIV_COL], errors="coerce").fillna(0)
 
             if local_sel == "Total":
@@ -721,13 +617,13 @@ with tab_outputs:
                 ]
             )
 
-            # ===== NOVO: contorno preto por fora a agrupar cada mês (12 blocos de 4 semanas) =====
+            # contorno por mês
             month_centers = [((m - 1) * 4 * step) + (2 * step) for m in range(1, 13)]
             month_width = 4 * step
 
             fig.add_trace(
                 go.Barpolar(
-                    r=[1.00] * 12,  # ligeiramente fora do anel principal
+                    r=[1.00] * 12,
                     theta=month_centers,
                     width=[month_width] * 12,
                     marker=dict(
@@ -739,7 +635,6 @@ with tab_outputs:
                 )
             )
 
-            # ticks dos meses (1 label por mês, no centro do bloco de 4 semanas)
             month_tickvals = month_centers
             month_ticktext = meses_nome
 
@@ -752,7 +647,7 @@ with tab_outputs:
                         tickmode="array",
                         tickvals=month_tickvals,
                         ticktext=month_ticktext,
-                        tickfont=dict(size=14, color="rgba(255,255,255,0.45)"),
+                        tickfont=dict(size=14, color="#111111"),
                         rotation=0,
                         direction="clockwise",
                         showline=False,
@@ -762,12 +657,10 @@ with tab_outputs:
                 showlegend=False,
                 height=650,
                 margin=dict(l=20, r=20, t=70, b=20),
+                font=dict(size=12, family="Helvetica", color="#111111"),
             )
 
             st.plotly_chart(fig, use_container_width=True)
-
-            #st.caption("Laranja = há registo nessa semana (dados/N_Semana) • Cinzento = sem registos")
-
 
 # =========================
 # TABLE TAB
@@ -873,6 +766,7 @@ with tab_tabela:
         file_name="kobo_dados_filtrados.xlsx",
         mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
     )
+
 
 
 
