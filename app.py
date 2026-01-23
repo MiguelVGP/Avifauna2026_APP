@@ -357,7 +357,7 @@ with tab_outputs:
                 .reset_index()
             )
             registos_por_local.columns = ["Local", "Nº de registos"]
-            st.dataframe(registos_por_local, use_container_width=True, height=260)
+            st.dataframe(registos_por_local, width="stretch", height=260)
 
     with c2:
         st.subheader("🦉 Espécie mais observada por local (por Nº indivíduos)")
@@ -378,7 +378,7 @@ with tab_outputs:
                 SPEC_COL: "Espécie mais observada"
             })
 
-            st.dataframe(top, use_container_width=True, height=260)
+            st.dataframe(top, width="stretch", height=260)
 
     st.divider()
 
@@ -416,7 +416,7 @@ with tab_outputs:
                 .reset_index(drop=True)
             )
 
-        st.dataframe(tabela, use_container_width=True, height=420)
+        st.dataframe(tabela, width="stretch", height=420)
 
     # ===== Download Excel (para o local selecionado) =====
     buffer = io.BytesIO()
@@ -680,7 +680,7 @@ with tab_outputs:
                 margin=dict(l=20, r=20, t=70, b=20),
             )
 
-            st.plotly_chart(fig, use_container_width=True)
+            st.plotly_chart(fig, width="stretch")
 
             st.caption("Laranja = há registo nessa semana (dados/N_Semana) • Cinzento = sem registos")
 
