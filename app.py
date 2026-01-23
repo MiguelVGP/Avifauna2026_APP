@@ -489,7 +489,7 @@ with tab_outputs:
                 margin=dict(l=20, r=20, t=60, b=20),
             )
 
-            st.plotly_chart(fig, use_container_width=True)
+            st.plotly_chart(fig, width="stretch")
             st.divider()
 
     st.subheader("Lista de Espécies (PDF)")
@@ -733,7 +733,7 @@ with tab_tabela:
                             rng = st.slider(colname, min_value=minv, max_value=maxv, value=(minv, maxv))
                             ui_state[colname] = {"type": "numeric", "value": rng}
                 else:
-                    dt = pd.to_datetime(s, errors="coerce", utc=False)
+                    dt = pd.to_datetime(s, errors="coerce", dayfirst=True, format="mixed")
                     valid = dt.dropna()
 
                     if len(valid) >= max(10, int(0.2 * len(s.dropna()))) and not valid.empty:
@@ -776,7 +776,7 @@ with tab_tabela:
 
     show_cols = st.multiselect("Colunas visíveis", options=all_cols, default=default_show)
 
-    st.dataframe(filtered[show_cols], use_container_width=True, height=520)
+    st.dataframe(registos_por_local, width="stretch", height=260)
 
     buffer = io.BytesIO()
     with pd.ExcelWriter(buffer, engine="openpyxl") as writer:
