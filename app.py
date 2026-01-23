@@ -10,31 +10,7 @@ from reportlab.lib.pagesizes import A4
 from reportlab.lib.units import cm
 import plotly.express as px
 import plotly.graph_objects as go
-import warnings
 
-import streamlit.components.v1 as components
-
-def _restore_scroll():
-    components.html("""
-    <script>
-    const y = sessionStorage.getItem("st_scroll_y");
-    if (y !== null) window.scrollTo(0, parseInt(y));
-    </script>
-    """, height=0)
-
-_restore_scroll()
-
-components.html("""
-<script>
-document.addEventListener("click", () => {
-  sessionStorage.setItem("st_scroll_y", window.scrollY);
-}, true);
-
-document.addEventListener("change", () => {
-  sessionStorage.setItem("st_scroll_y", window.scrollY);
-}, true);
-</script>
-""", height=0)
 
 # =========================
 # FIXOS (Kobo + Password)
@@ -46,12 +22,36 @@ APP_PASSWORD = "teste"
 DEFAULT_LIMIT = 5000
 
 # =========================
-# UI / Config (sem CSS)
+# UI / Branding (Orange theme tweaks)
 # =========================
 st.set_page_config(page_title="Kobo Data Hub", layout="wide")
 
-# Note: sem CSS, usamos os componentes do Streamlit (títulos, subheaders, markdown bold)
-# e definimos fontes/tamanhos nos gráficos Plotly quando aplicável.
+CUSTOM_CSS = """
+<style>
+/* Metric cards */
+div[data-testid="stMetric"] {
+  background: rgba(245,124,0,0.35);
+  border-radius: 14px;
+  padding: 10px 12px;
+  border: 1px solid rgba(245,124,0,0.35);
+}
+div[data-testid="stMetric"] * { color: white !important; }
+
+/* Inputs arredondados */
+div[data-baseweb="select"] > div,
+div[data-testid="stTextInput"] > div,
+div[data-testid="stNumberInput"] > div {
+  border-radius: 12px !important;
+}
+
+/* Dataframe container */
+div[data-testid="stDataFrame"] {
+  border-radius: 14px;
+  overflow: hidden;
+}
+</style>
+"""
+st.markdown(CUSTOM_CSS, unsafe_allow_html=True)
 
 # =========================
 # Login gate
@@ -69,6 +69,7 @@ if not st.session_state.authenticated:
         if st.button("Entrar"):
             if pwd == APP_PASSWORD:
                 st.session_state.authenticated = True
+                st.rerun()
             else:
                 st.error("Palavra-passe incorreta.")
     st.stop()
@@ -95,22 +96,6 @@ def normalize_complex_columns(df: pd.DataFrame) -> pd.DataFrame:
         except Exception:
             df2[c] = df2[c].astype(str)
     return df2
-
-def try_parse_dates(series: pd.Series) -> pd.Series:
-    formats = ["%Y-%m-%d", "%d-%m-%Y", "%d/%m/%Y", "%Y/%m/%d"]
-    for fmt in formats:
-        parsed = pd.to_datetime(series, format=fmt, errors="coerce", dayfirst=True)
-        if parsed.notna().any():
-            return parsed
-
-    # Fallback: suprimir o UserWarning específico do pandas sobre inferência de formato
-    with warnings.catch_warnings():
-        warnings.filterwarnings(
-            "ignore",
-            message="Could not infer format, so each element will be parsed individually, falling back to `dateutil`."
-        )
-        parsed = pd.to_datetime(series, dayfirst=True, errors="coerce")
-    return parsed
 
 def parse_amostragem_cell(x):
     if x is None or (isinstance(x, float) and pd.isna(x)):
@@ -221,7 +206,7 @@ def apply_filters(df: pd.DataFrame, ui_state: dict) -> pd.DataFrame:
 
         elif ftype == "date":
             start_date, end_date = val
-            s = try_parse_dates(out[col])
+            s = pd.to_datetime(out[col], errors="coerce", utc=False)
             mask = s.dt.date.between(start_date, end_date)
             out = out[mask]
 
@@ -237,17 +222,19 @@ b1, b2 = st.columns(2)
 with b1:
     if st.button("Recarregar"):
         st.cache_data.clear()
+        st.rerun()
 
 with b2:
     if st.button("Sair"):
         st.session_state.authenticated = False
+        st.rerun()
 
 limit = DEFAULT_LIMIT
 
 # =========================
 # Load Data
 # =========================
-with st.spinner("A carregar dados do Kobo..."): 
+with st.spinner("A carregar dados do Kobo..."):
     try:
         df_raw = fetch_kobo_raw(limit=int(limit))
     except requests.HTTPError as e:
@@ -259,7 +246,6 @@ with st.spinner("A carregar dados do Kobo..."):
         st.exception(e)
         st.stop()
 
-
 df = prepare_submissions_df(df_raw)
 df_amostras_raw = explode_amostragem(df_raw, amostragem_col="Amostragem")
 df_amostras = normalize_complex_columns(df_amostras_raw) if not df_amostras_raw.empty else pd.DataFrame()
@@ -270,6 +256,14 @@ df_amostras = normalize_complex_columns(df_amostras_raw) if not df_amostras_raw.
 tab_tabela, tab_outputs = st.tabs(["📋 Tabela", "📊 Outputs"])
 
 def build_species_list_pdf(local: str, species_df: pd.DataFrame) -> bytes:
+    """
+    species_df: colunas ["Espécie", "Nº indivíduos"] já agregadas e ordenadas.
+    Layout:
+      - topo esq: Local
+      - topo dir: data de hoje
+      - centro: Nº Total de Espécies
+      - lista: "Espécie (N)" linha a linha
+    """
     buffer = io.BytesIO()
     c = canvas.Canvas(buffer, pagesize=A4)
     width, height = A4
@@ -363,7 +357,7 @@ with tab_outputs:
                 .reset_index()
             )
             registos_por_local.columns = ["Local", "Nº de registos"]
-            st.dataframe(registos_por_local, width='stretch', height=260)
+            st.dataframe(registos_por_local, use_container_width=True, height=260)
 
     with c2:
         st.subheader("🦉 Espécie mais observada por local (por Nº indivíduos)")
@@ -384,7 +378,7 @@ with tab_outputs:
                 SPEC_COL: "Espécie mais observada"
             })
 
-            st.dataframe(top, width='stretch', height=260)
+            st.dataframe(top, use_container_width=True, height=260)
 
     st.divider()
 
@@ -401,8 +395,8 @@ with tab_outputs:
         st.info("Faltam colunas necessárias para gerar a tabela por local.")
     else:
         base = df_amostras[[LOCAL_COL, SPEC_COL, INDIV_COL]].copy()
-        base[LOCAL_COL] = base[LOCAL_COL].fillna(""").astype(str).str.strip()
-        base[SPEC_COL]  = base[SPEC_COL].fillna(""").astype(str).str.strip()
+        base[LOCAL_COL] = base[LOCAL_COL].fillna("").astype(str).str.strip()
+        base[SPEC_COL]  = base[SPEC_COL].fillna("").astype(str).str.strip()
         base[INDIV_COL] = pd.to_numeric(base[INDIV_COL], errors="coerce").fillna(0)
 
         local_sel = st.selectbox("Local", FIXED_LOCAIS, index=0)
@@ -422,7 +416,7 @@ with tab_outputs:
                 .reset_index(drop=True)
             )
 
-        st.dataframe(tabela, width='stretch', height=420)
+        st.dataframe(tabela, use_container_width=True, height=420)
 
     # ===== Download Excel (para o local selecionado) =====
     buffer = io.BytesIO()
@@ -456,8 +450,8 @@ with tab_outputs:
         st.info("Faltam colunas necessárias para gerar o gráfico.")
     else:
         base = df_amostras[[LOCAL_COL, SPEC_COL, INDIV_COL]].copy()
-        base[LOCAL_COL] = base[LOCAL_COL].fillna(""").astype(str).str.strip()
-        base[SPEC_COL]  = base[SPEC_COL].fillna(""").astype(str).str.strip()
+        base[LOCAL_COL] = base[LOCAL_COL].fillna("").astype(str).str.strip()
+        base[SPEC_COL]  = base[SPEC_COL].fillna("").astype(str).str.strip()
         base[INDIV_COL] = pd.to_numeric(base[INDIV_COL], errors="coerce").fillna(0)
 
         if local_plot != "Total":
@@ -466,6 +460,7 @@ with tab_outputs:
         if base.empty:
             st.warning("Sem registos para este local.")
         else:
+            # total indivíduos por espécie
             agg = (
                 base.groupby(SPEC_COL, dropna=False)[INDIV_COL]
                 .sum()
@@ -473,8 +468,10 @@ with tab_outputs:
                 .rename(columns={SPEC_COL: "Espécie", INDIV_COL: "Total indivíduos"})
             )
 
+            # Abundância média (por 52 semanas)
             agg["Abundância média (N/52)"] = agg["Total indivíduos"] / 52.0
 
+            # ordenar e limitar (opcional)
             top_n = st.slider("Top N espécies", min_value=3, max_value=18, value=10, step=3, key="abund_topn")
             agg = agg.sort_values("Abundância média (N/52)", ascending=True).tail(top_n)
 
@@ -486,16 +483,13 @@ with tab_outputs:
                 orientation="h",
                 hover_data={"Total indivíduos": True, "Abundância média (N/52)": ":.2f"},
                 title=f"Abundância média por espécie — {local_plot}",
-                color_discrete_sequence=["#FF6600"],
             )
             fig.update_layout(
                 height=700,
                 margin=dict(l=20, r=20, t=60, b=20),
-                font=dict(size=12, family="Helvetica", color="#111111"),
-                title=dict(font=dict(size=16)),
             )
 
-            st.plotly_chart(fig, width='stretch')
+            st.plotly_chart(fig, use_container_width=True)
             st.divider()
 
     st.subheader("Lista de Espécies (PDF)")
@@ -522,8 +516,8 @@ with tab_outputs:
             st.info("Faltam colunas necessárias para gerar a lista.")
         else:
             base = df_amostras[[LOCAL_COL, SPEC_COL, INDIV_COL]].copy()
-            base[LOCAL_COL] = base[LOCAL_COL].fillna(""").astype(str).str.strip()
-            base[SPEC_COL]  = base[SPEC_COL].fillna(""").astype(str).str.strip()
+            base[LOCAL_COL] = base[LOCAL_COL].fillna("").astype(str).str.strip()
+            base[SPEC_COL]  = base[SPEC_COL].fillna("").astype(str).str.strip()
             base[INDIV_COL] = pd.to_numeric(base[INDIV_COL], errors="coerce").fillna(0)
 
             if local_sel == "Total":
@@ -556,6 +550,7 @@ with tab_outputs:
     st.divider()
     st.subheader("🟠 Presença / Ausência por mês e semana (circular)")
 
+    # colunas necessárias
     WEEK_COL = "dados/N_Semana"
     LOCAL_COL = "dados/Local"
     SPEC_COL = "Amostragem/Espécie_final"
@@ -571,9 +566,10 @@ with tab_outputs:
     if df_amostras.empty or any(c not in df_amostras.columns for c in [WEEK_COL, LOCAL_COL, SPEC_COL]):
         st.info("Faltam colunas para gerar o gráfico (dados/N_Semana, dados/Local, Amostragem/Espécie_final).")
     else:
+        # base (normalizada)
         base = df_amostras[[WEEK_COL, LOCAL_COL, SPEC_COL]].copy()
-        base[LOCAL_COL] = base[LOCAL_COL].fillna(""").astype(str).str.strip()
-        base[SPEC_COL] = base[SPEC_COL].fillna(""").astype(str).str.strip()
+        base[LOCAL_COL] = base[LOCAL_COL].fillna("").astype(str).str.strip()
+        base[SPEC_COL] = base[SPEC_COL].fillna("").astype(str).str.strip()
         base[WEEK_COL] = pd.to_numeric(base[WEEK_COL], errors="coerce")
 
         base = base.dropna(subset=[WEEK_COL])
@@ -582,24 +578,31 @@ with tab_outputs:
         if base.empty:
             st.warning("Não há valores válidos em dados/N_Semana (1..52).")
         else:
+            # escolhas
             colA, colB = st.columns(2)
             with colA:
                 local_sel = st.selectbox("Local", locais_opts, index=0, key="pa_local_sel")
 
+            # lista dinâmica de espécies (do próprio dataset)
             especies = sorted([s for s in base[SPEC_COL].dropna().astype(str).unique() if s.strip() != ""])
             with colB:
                 especie_sel = st.selectbox("Espécie", especies, index=0, key="pa_especie_sel")
 
+            # filtrar por local + espécie
             work = base[base[SPEC_COL] == especie_sel].copy()
             if local_sel != "Total":
                 work = work[work[LOCAL_COL] == local_sel]
 
+            # mapear N_Semana (1..52) -> mês (1..12) e semana_no_mes (1..4)
+            # 1-4 Jan, 5-8 Fev, ... 45-48 Nov, 49-52 Dez
             work["Mes"] = ((work[WEEK_COL] - 1) // 4 + 1).astype(int)
             work.loc[work["Mes"] > 12, "Mes"] = 12
             work["SemanaMes"] = ((work[WEEK_COL] - 1) % 4 + 1).astype(int)
 
+            # presença: set de (mês, semana_no_mes)
             presentes = set(zip(work["Mes"].tolist(), work["SemanaMes"].tolist()))
 
+            # construir 48 segmentos na ordem mês1-semana1..4, mês2-semana1..4, ...
             meses_nome = ["Jan", "Fev", "Mar", "Abr", "Mai", "Jun", "Jul", "Ago", "Set", "Out", "Nov", "Dez"]
             labels = []
             colors = []
@@ -614,7 +617,7 @@ with tab_outputs:
             for m in range(1, 13):
                 for w in range(1, 5):
                     idx += 1
-                    thetas.append((idx - 1) * step + step/2)
+                    thetas.append((idx - 1) * step + step/2)  # centra a fatia -> alinha com as divisões do mês
                     labels.append(f"{meses_nome[m-1]} — Semana {w}")
                     colors.append(orange if (m, w) in presentes else gray)
 
@@ -634,16 +637,17 @@ with tab_outputs:
                 ]
             )
 
+            # ===== NOVO: contorno preto por fora a agrupar cada mês (12 blocos de 4 semanas) =====
             month_centers = [((m - 1) * 4 * step) + (2 * step) for m in range(1, 13)]
             month_width = 4 * step
 
             fig.add_trace(
                 go.Barpolar(
-                    r=[1.00] * 12,
+                    r=[1.00] * 12,  # ligeiramente fora do anel principal
                     theta=month_centers,
                     width=[month_width] * 12,
                     marker=dict(
-                        color=["rgba(0,0,0,0)"] * 12,
+                        color=["rgba(0,0,0,0)"] * 12,  # transparente (sem preenchimento)
                         line=dict(color="black", width=3),
                     ),
                     hoverinfo="skip",
@@ -651,6 +655,7 @@ with tab_outputs:
                 )
             )
 
+            # ticks dos meses (1 label por mês, no centro do bloco de 4 semanas)
             month_tickvals = month_centers
             month_ticktext = meses_nome
 
@@ -675,7 +680,10 @@ with tab_outputs:
                 margin=dict(l=20, r=20, t=70, b=20),
             )
 
-            st.plotly_chart(fig, width='stretch')
+            st.plotly_chart(fig, use_container_width=True)
+
+            st.caption("Laranja = há registo nessa semana (dados/N_Semana) • Cinzento = sem registos")
+
 
 # =========================
 # TABLE TAB
@@ -725,7 +733,7 @@ with tab_tabela:
                             rng = st.slider(colname, min_value=minv, max_value=maxv, value=(minv, maxv))
                             ui_state[colname] = {"type": "numeric", "value": rng}
                 else:
-                    dt = try_parse_dates(s)
+                    dt = pd.to_datetime(s, errors="coerce", utc=False)
                     valid = dt.dropna()
 
                     if len(valid) >= max(10, int(0.2 * len(s.dropna()))) and not valid.empty:
@@ -768,7 +776,7 @@ with tab_tabela:
 
     show_cols = st.multiselect("Colunas visíveis", options=all_cols, default=default_show)
 
-    st.dataframe(filtered[show_cols], width='stretch', height=520)
+    st.dataframe(filtered[show_cols], use_container_width=True, height=520)
 
     buffer = io.BytesIO()
     with pd.ExcelWriter(buffer, engine="openpyxl") as writer:
@@ -781,3 +789,8 @@ with tab_tabela:
         file_name="kobo_dados_filtrados.xlsx",
         mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
     )
+
+
+
+
+
