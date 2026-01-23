@@ -354,8 +354,8 @@ if section == "🐦‍⬛​ Visão geral":
             st.dataframe(top, width="stretch", height=420)
 
 
-elif section == "📍 Outputs — Espécies por local":
-    st.subheader("📍 Outputs — Espécies por local")
+elif section == "📍 Espécies por local":
+    st.subheader("📍 Espécies por local")
 
     if "out_local_sel" not in st.session_state:
         st.session_state.out_local_sel = FIXED_LOCAIS[0]
@@ -408,8 +408,8 @@ elif section == "📍 Outputs — Espécies por local":
     )
 
 
-elif section == "📊 Outputs — Abundância média":
-    st.subheader("📊 Outputs — Abundância média por espécie (N/52)")
+elif section == "📊 Abundância média":
+    st.subheader("📊 Abundância média")
 
     if "out_abund_local" not in st.session_state:
         st.session_state.out_abund_local = "Total"
@@ -468,8 +468,8 @@ elif section == "📊 Outputs — Abundância média":
             st.plotly_chart(fig, width="stretch")
 
 
-elif section == "📄 Outputs — PDF Lista de espécies":
-    st.subheader("📄 Outputs — PDF Lista de espécies")
+elif section == "📄 PDF Lista de espécies":
+    st.subheader("📄 PDF Lista de espécies")
 
     if "out_pdf_local" not in st.session_state:
         st.session_state.out_pdf_local = "Total"
@@ -522,8 +522,8 @@ elif section == "📄 Outputs — PDF Lista de espécies":
             )
 
 
-elif section == "🟠 Outputs — Presença / Ausência":
-    st.subheader("🟠 Outputs — Presença / Ausência por mês e semana (circular)")
+elif section == "✅ Presença / Ausência":
+    st.subheader("✅ Presença / Ausência")
 
     locais_opts = ["Total"] + FIXED_LOCAIS
 
@@ -660,8 +660,8 @@ elif section == "🟠 Outputs — Presença / Ausência":
                 st.caption("Laranja = há registo nessa semana (dados/N_Semana) • Cinzento = sem registos")
 
 
-elif section == "📋 Tabela — filtros + export":
-    st.subheader("📋 Tabela — filtros + export")
+elif section == "📋 Tabela":
+    st.subheader("📋 Tabela")
 
     df_base = df_amostras if not df_amostras.empty else df
 
