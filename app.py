@@ -250,15 +250,9 @@ def build_species_list_pdf(local: str, species_df: pd.DataFrame) -> bytes:
 # =========================
 st.title("Avifauna 2026 🐦 Kobo Data Hub")
 
-b1, b2 = st.columns(2)
-with b1:
-    if st.button("Recarregar"):
-        st.cache_data.clear()
-        st.rerun()
-with b2:
-    if st.button("Sair"):
-        st.session_state.authenticated = False
-        st.rerun()
+if st.button("Sair"):
+    st.session_state.authenticated = False
+    st.rerun()
 
 # =========================
 # Load Data
