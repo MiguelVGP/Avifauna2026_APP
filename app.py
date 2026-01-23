@@ -776,7 +776,7 @@ with tab_tabela:
 
     show_cols = st.multiselect("Colunas visíveis", options=all_cols, default=default_show)
 
-    st.dataframe(registos_por_local, width="stretch", height=260)
+    st.dataframe(filtered[show_cols], width="stretch", height=520)
 
     buffer = io.BytesIO()
     with pd.ExcelWriter(buffer, engine="openpyxl") as writer:
