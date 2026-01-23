@@ -10,7 +10,7 @@ from reportlab.lib.pagesizes import A4
 from reportlab.lib.units import cm
 import plotly.express as px
 import plotly.graph_objects as go
-
+import warnings
 
 # =========================
 # FIXOS (Kobo + Password)
@@ -79,7 +79,15 @@ def try_parse_dates(series: pd.Series) -> pd.Series:
         parsed = pd.to_datetime(series, format=fmt, errors="coerce", dayfirst=True)
         if parsed.notna().any():
             return parsed
-    return pd.to_datetime(series, dayfirst=True, errors="coerce")
+
+    # Fallback: suprimir o UserWarning específico do pandas sobre inferência de formato
+    with warnings.catch_warnings():
+        warnings.filterwarnings(
+            "ignore",
+            message="Could not infer format, so each element will be parsed individually, falling back to `dateutil`."
+        )
+        parsed = pd.to_datetime(series, dayfirst=True, errors="coerce")
+    return parsed
 
 def parse_amostragem_cell(x):
     if x is None or (isinstance(x, float) and pd.isna(x)):
