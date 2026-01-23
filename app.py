@@ -12,6 +12,30 @@ import plotly.express as px
 import plotly.graph_objects as go
 import warnings
 
+import streamlit.components.v1 as components
+
+def _restore_scroll():
+    components.html("""
+    <script>
+    const y = sessionStorage.getItem("st_scroll_y");
+    if (y !== null) window.scrollTo(0, parseInt(y));
+    </script>
+    """, height=0)
+
+_restore_scroll()
+
+components.html("""
+<script>
+document.addEventListener("click", () => {
+  sessionStorage.setItem("st_scroll_y", window.scrollY);
+}, true);
+
+document.addEventListener("change", () => {
+  sessionStorage.setItem("st_scroll_y", window.scrollY);
+}, true);
+</script>
+""", height=0)
+
 # =========================
 # FIXOS (Kobo + Password)
 # =========================
@@ -45,7 +69,6 @@ if not st.session_state.authenticated:
         if st.button("Entrar"):
             if pwd == APP_PASSWORD:
                 st.session_state.authenticated = True
-                st.rerun()
             else:
                 st.error("Palavra-passe incorreta.")
     st.stop()
@@ -214,12 +237,10 @@ b1, b2 = st.columns(2)
 with b1:
     if st.button("Recarregar"):
         st.cache_data.clear()
-        st.rerun()
 
 with b2:
     if st.button("Sair"):
         st.session_state.authenticated = False
-        st.rerun()
 
 limit = DEFAULT_LIMIT
 
