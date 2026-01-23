@@ -335,7 +335,7 @@ if section == "🐦‍⬛​ Visão geral":
                 df_amostras[LOCAL_COL].fillna("Sem local").astype(str).value_counts().reset_index()
             )
             registos_por_local.columns = ["Local", "Nº de registos"]
-            st.dataframe(registos_por_local, width="stretch", height=420)
+            st.dataframe(registos_por_local, width="stretch", height=420, hide_index=True)
 
     with c2:
         st.subheader("🦉 Espécie mais observada por local")
@@ -351,7 +351,7 @@ if section == "🐦‍⬛​ Visão geral":
             idx = counts.groupby(LOCAL_COL)["Nº indivíduos"].idxmax()
             top = counts.loc[idx].sort_values(LOCAL_COL)
             top = top.rename(columns={LOCAL_COL: "Local", SPEC_COL: "Espécie mais observada"})
-            st.dataframe(top, width="stretch", height=420)
+            st.dataframe(top, width="stretch", height=420, hide_index=True)
 
 
 elif section == "📍 Espécies por local":
