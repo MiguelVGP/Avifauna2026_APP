@@ -32,56 +32,24 @@ st.set_page_config(page_title="Kobo Data Hub", layout="wide")
 
 
 # =========================
-# Scroll restore (auto-update sem saltar ao topo)
+# Utils (scroll)
 # =========================
-def enable_scroll_restore():
+def scroll_to(anchor_id: str):
+    """Tenta manter a UX no Cloud: após 'Aplicar', faz scroll para a secção."""
     components.html(
-        """
+        f"""
         <script>
-        (function() {
-          const key = "st_scrollY_restore";
-
-          function saveScroll() {
-            try {
-              window.parent.sessionStorage.setItem(key, String(window.parent.scrollY || 0));
-            } catch(e) {}
-          }
-
-          // Guarda ao interagir com inputs (select/slider/date/etc.)
-          window.parent.document.addEventListener("input", saveScroll, true);
-          window.parent.document.addEventListener("change", saveScroll, true);
-          window.parent.document.addEventListener("click", saveScroll, true);
-          window.parent.document.addEventListener("keydown", saveScroll, true);
-          window.parent.document.addEventListener("wheel", saveScroll, {capture:true, passive:true});
-
-          // Restaura (com pequenas tentativas, porque alguns componentes carregam depois)
-          const yRaw = window.parent.sessionStorage.getItem(key);
-          const y = yRaw ? parseInt(yRaw, 10) : 0;
-
-          let tries = 0;
-          const maxTries = 20;
-
-          function restore() {
-            tries += 1;
-            try {
-              window.parent.scrollTo({ top: isNaN(y) ? 0 : y, behavior: "auto" });
-            } catch(e) {}
-
-            if (tries < maxTries) {
-              // tenta novamente (Plotly/tabelas podem alterar layout após render)
-              window.setTimeout(restore, 80);
-            }
-          }
-
-          // espera 1 tick para garantir que o DOM existe
-          window.setTimeout(restore, 0);
-        })();
+          const el = window.parent.document.getElementById("{anchor_id}");
+          if (el) {{
+            el.scrollIntoView({{behavior: "smooth", block: "start"}});
+          }} else {{
+            // fallback: tenta hash
+            window.parent.location.hash = "#{anchor_id}";
+          }}
         </script>
         """,
         height=0,
     )
-
-enable_scroll_restore()
 
 
 # =========================
@@ -245,7 +213,6 @@ def apply_filters(df: pd.DataFrame, ui_state: dict) -> pd.DataFrame:
 
         elif ftype == "date":
             start_date, end_date = val
-            # evita warnings e mantém consistente
             s = pd.to_datetime(out[col], errors="coerce", dayfirst=True, format="mixed")
             mask = s.dt.date.between(start_date, end_date)
             out = out[mask]
@@ -351,7 +318,8 @@ def build_species_list_pdf(local: str, species_df: pd.DataFrame) -> bytes:
 
 
 # =========================
-# OUTPUTS TAB (auto-update, sem forms)
+# OUTPUTS TAB
+# (agora com FORMS para reduzir reruns a cada clique)
 # =========================
 with tab_outputs:
     LOCAL_COL = "dados/Local"
@@ -376,14 +344,15 @@ with tab_outputs:
 
     st.divider()
 
+    # ---- Registos por local + top espécie por local
+    st.markdown('<div id="out_top_tables"></div>', unsafe_allow_html=True)
+
     c1, c2 = st.columns([1, 1])
 
-    # Registos por local
     with c1:
         st.subheader("📍 Registos por local (amostras)")
         if df_amostras.empty or LOCAL_COL not in df_amostras.columns:
             st.info("Não encontrei a coluna 'Amostragem' ou 'dados/Local'.")
-            registos_por_local = pd.DataFrame(columns=["Local", "Nº de registos"])
         else:
             registos_por_local = (
                 df_amostras[LOCAL_COL]
@@ -395,7 +364,6 @@ with tab_outputs:
             registos_por_local.columns = ["Local", "Nº de registos"]
             st.dataframe(registos_por_local, width="stretch", height=260)
 
-    # Top espécie por local
     with c2:
         st.subheader("🦉 Espécie mais observada por local (por Nº indivíduos)")
         if df_amostras.empty or any(c not in df_amostras.columns for c in [LOCAL_COL, SPEC_COL, INDIV_COL]):
@@ -415,9 +383,20 @@ with tab_outputs:
 
     st.divider()
 
-    # Espécies por local
+    # ---- Espécies por local (FORM)
+    st.markdown('<div id="out_species_by_local"></div>', unsafe_allow_html=True)
     st.subheader("📍 Espécies por local")
-    local_sel = st.selectbox("Local", FIXED_LOCAIS, index=0, key="out_local_sel")
+
+    if "out_local_sel" not in st.session_state:
+        st.session_state.out_local_sel = FIXED_LOCAIS[0]
+
+    with st.form("form_species_by_local", clear_on_submit=False):
+        local_sel = st.selectbox("Local", FIXED_LOCAIS, index=FIXED_LOCAIS.index(st.session_state.out_local_sel))
+        submitted = st.form_submit_button("Aplicar")
+        if submitted:
+            st.session_state.out_local_sel = local_sel
+
+    local_sel = st.session_state.out_local_sel
 
     if df_amostras.empty or any(c not in df_amostras.columns for c in [LOCAL_COL, SPEC_COL, INDIV_COL]):
         st.info("Faltam colunas necessárias para gerar a tabela por local.")
@@ -429,6 +408,7 @@ with tab_outputs:
         base[INDIV_COL] = pd.to_numeric(base[INDIV_COL], errors="coerce").fillna(0)
 
         df_loc = base[base[LOCAL_COL] == local_sel]
+
         if df_loc.empty:
             st.caption("Sem registos.")
             tabela = pd.DataFrame(columns=["Espécie", "Nº indivíduos"])
@@ -444,6 +424,7 @@ with tab_outputs:
 
     st.dataframe(tabela, width="stretch", height=420)
 
+    # Download Excel (local selecionado)
     buffer = io.BytesIO()
     with pd.ExcelWriter(buffer, engine="openpyxl") as writer:
         tabela.to_excel(writer, index=False, sheet_name="Especies")
@@ -457,12 +438,36 @@ with tab_outputs:
         key=f"download_excel_local_{local_sel}",
     )
 
+    if submitted:
+        scroll_to("out_species_by_local")
+
     st.divider()
 
-    # Abundância média
+    # ---- Abundância média (FORM)
+    st.markdown('<div id="out_abund"></div>', unsafe_allow_html=True)
     st.subheader("📊 Abundância média por espécie (Nº indivíduos / 52 semanas)")
+
+    if "out_abund_local" not in st.session_state:
+        st.session_state.out_abund_local = "Total"
+    if "out_abund_topn" not in st.session_state:
+        st.session_state.out_abund_topn = 10
+
     locais_plot = ["Total"] + FIXED_LOCAIS
-    local_plot = st.selectbox("Local (Abundância média)", locais_plot, index=0, key="abund_local_sel")
+
+    with st.form("form_abund", clear_on_submit=False):
+        local_plot = st.selectbox(
+            "Local (Abundância média)",
+            locais_plot,
+            index=locais_plot.index(st.session_state.out_abund_local),
+        )
+        top_n = st.slider("Top N espécies", min_value=3, max_value=18, value=int(st.session_state.out_abund_topn), step=3)
+        submitted_abund = st.form_submit_button("Aplicar")
+        if submitted_abund:
+            st.session_state.out_abund_local = local_plot
+            st.session_state.out_abund_topn = top_n
+
+    local_plot = st.session_state.out_abund_local
+    top_n = int(st.session_state.out_abund_topn)
 
     if df_amostras.empty or any(c not in df_amostras.columns for c in [LOCAL_COL, SPEC_COL, INDIV_COL]):
         st.info("Faltam colunas necessárias para gerar o gráfico.")
@@ -484,9 +489,8 @@ with tab_outputs:
                 .reset_index()
                 .rename(columns={SPEC_COL: "Espécie", INDIV_COL: "Total indivíduos"})
             )
-            agg["Abundância média (N/52)"] = agg["Total indivíduos"] / 52.0
 
-            top_n = st.slider("Top N espécies", min_value=3, max_value=18, value=10, step=3, key="abund_topn")
+            agg["Abundância média (N/52)"] = agg["Total indivíduos"] / 52.0
             agg = agg.sort_values("Abundância média (N/52)", ascending=True).tail(top_n)
 
             fig = px.bar(
@@ -500,20 +504,42 @@ with tab_outputs:
             fig.update_layout(height=700, margin=dict(l=20, r=20, t=60, b=20))
             st.plotly_chart(fig, width="stretch")
 
+    if submitted_abund:
+        scroll_to("out_abund")
+
     st.divider()
 
-    # PDF
+    # ---- PDF Lista de espécies (FORM + toggle)
+    st.markdown('<div id="out_pdf"></div>', unsafe_allow_html=True)
     st.subheader("Lista de Espécies (PDF)")
+
     if "show_lista_especies" not in st.session_state:
         st.session_state.show_lista_especies = False
 
-    if st.button("📄 Lista de Espécies", key="btn_toggle_pdf"):
+    if st.button("📄 Lista de Espécies"):
         st.session_state.show_lista_especies = not st.session_state.show_lista_especies
+        scroll_to("out_pdf")
 
     if st.session_state.show_lista_especies:
         st.subheader("📄 Gerar PDF — Lista de Espécies")
+
+        if "out_pdf_local" not in st.session_state:
+            st.session_state.out_pdf_local = "Total"
+
         locais_pdf = ["Total"] + FIXED_LOCAIS
-        local_sel_pdf = st.selectbox("Local", locais_pdf, index=0, key="pdf_local_sel_total")
+
+        with st.form("form_pdf", clear_on_submit=False):
+            local_sel_pdf = st.selectbox(
+                "Local",
+                locais_pdf,
+                index=locais_pdf.index(st.session_state.out_pdf_local),
+                key="pdf_local_sel_total_form",
+            )
+            submitted_pdf = st.form_submit_button("Gerar / Atualizar")
+            if submitted_pdf:
+                st.session_state.out_pdf_local = local_sel_pdf
+
+        local_sel_pdf = st.session_state.out_pdf_local
 
         if df_amostras.empty or any(c not in df_amostras.columns for c in [LOCAL_COL, SPEC_COL, INDIV_COL]):
             st.info("Faltam colunas necessárias para gerar a lista.")
@@ -547,10 +573,16 @@ with tab_outputs:
                     key=f"download_pdf_{local_sel_pdf}",
                 )
 
+        if submitted_pdf:
+            scroll_to("out_pdf")
+
     st.divider()
 
-    # Presença / Ausência
+    # ---- Presença/Ausência (FORM)
+    st.markdown('<div id="out_pa"></div>', unsafe_allow_html=True)
     st.subheader("🟠 Presença / Ausência por mês e semana (circular)")
+
+    locais_opts = ["Total"] + FIXED_LOCAIS
 
     if df_amostras.empty or any(c not in df_amostras.columns for c in [WEEK_COL, LOCAL_COL, SPEC_COL]):
         st.info("Faltam colunas para gerar o gráfico (dados/N_Semana, dados/Local, Amostragem/Espécie_final).")
@@ -566,176 +598,247 @@ with tab_outputs:
         if base.empty:
             st.warning("Não há valores válidos em dados/N_Semana (1..52).")
         else:
-            locais_opts = ["Total"] + FIXED_LOCAIS
-            colA, colB = st.columns(2)
-            with colA:
-                local_sel = st.selectbox("Local", locais_opts, index=0, key="pa_local_sel")
             especies = sorted([s for s in base[SPEC_COL].dropna().astype(str).unique() if s.strip() != ""])
-            with colB:
-                especie_sel = st.selectbox("Espécie", especies, index=0, key="pa_especie_sel")
+            if not especies:
+                st.warning("Não há espécies válidas para selecionar.")
+            else:
+                if "out_pa_local" not in st.session_state:
+                    st.session_state.out_pa_local = "Total"
+                if "out_pa_especie" not in st.session_state:
+                    st.session_state.out_pa_especie = especies[0]  # default
 
-            work = base[base[SPEC_COL] == especie_sel].copy()
-            if local_sel != "Total":
-                work = work[work[LOCAL_COL] == local_sel]
+                # garante que a espécie guardada ainda existe
+                if st.session_state.out_pa_especie not in especies:
+                    st.session_state.out_pa_especie = especies[0]
 
-            work["Mes"] = ((work[WEEK_COL] - 1) // 4 + 1).astype(int)
-            work.loc[work["Mes"] > 12, "Mes"] = 12
-            work["SemanaMes"] = ((work[WEEK_COL] - 1) % 4 + 1).astype(int)
+                with st.form("form_pa", clear_on_submit=False):
+                    colA, colB = st.columns(2)
+                    with colA:
+                        local_sel_pa = st.selectbox(
+                            "Local",
+                            locais_opts,
+                            index=locais_opts.index(st.session_state.out_pa_local),
+                            key="pa_local_form",
+                        )
+                    with colB:
+                        especie_sel_pa = st.selectbox(
+                            "Espécie",
+                            especies,
+                            index=especies.index(st.session_state.out_pa_especie),
+                            key="pa_especie_form",
+                        )
+                    submitted_pa = st.form_submit_button("Aplicar")
+                    if submitted_pa:
+                        st.session_state.out_pa_local = local_sel_pa
+                        st.session_state.out_pa_especie = especie_sel_pa
 
-            presentes = set(zip(work["Mes"].tolist(), work["SemanaMes"].tolist()))
+                local_sel = st.session_state.out_pa_local
+                especie_sel = st.session_state.out_pa_especie
 
-            meses_nome = ["Jan", "Fev", "Mar", "Abr", "Mai", "Jun", "Jul", "Ago", "Set", "Out", "Nov", "Dez"]
-            labels, colors, thetas = [], [], []
+                work = base[base[SPEC_COL] == especie_sel].copy()
+                if local_sel != "Total":
+                    work = work[work[LOCAL_COL] == local_sel]
 
-            n_segments = 48
-            step = 360 / n_segments
-            orange = "#00F715"
-            gray = "#E0E0E0"
+                work["Mes"] = ((work[WEEK_COL] - 1) // 4 + 1).astype(int)
+                work.loc[work["Mes"] > 12, "Mes"] = 12
+                work["SemanaMes"] = ((work[WEEK_COL] - 1) % 4 + 1).astype(int)
 
-            idx = 0
-            for m in range(1, 13):
-                for w in range(1, 5):
-                    idx += 1
-                    thetas.append((idx - 1) * step + step / 2)
-                    labels.append(f"{meses_nome[m-1]} — Semana {w}")
-                    colors.append(orange if (m, w) in presentes else gray)
+                presentes = set(zip(work["Mes"].tolist(), work["SemanaMes"].tolist()))
 
-            fig = go.Figure(
-                data=[
-                    go.Barpolar(
-                        r=[1] * n_segments,
-                        theta=thetas,
-                        width=[step] * n_segments,
-                        marker_color=colors,
-                        marker_line_color="white",
-                        marker_line_width=1,
-                        hovertext=labels,
-                        hoverinfo="text",
-                        opacity=0.98,
-                    )
-                ]
-            )
+                meses_nome = ["Jan", "Fev", "Mar", "Abr", "Mai", "Jun", "Jul", "Ago", "Set", "Out", "Nov", "Dez"]
+                labels, colors, thetas = [], [], []
 
-            month_centers = [((m - 1) * 4 * step) + (2 * step) for m in range(1, 13)]
-            month_width = 4 * step
+                n_segments = 48
+                step = 360 / n_segments
+                orange = "#00F715"
+                gray = "#E0E0E0"
 
-            fig.add_trace(
-                go.Barpolar(
-                    r=[1.00] * 12,
-                    theta=month_centers,
-                    width=[month_width] * 12,
-                    marker=dict(
-                        color=["rgba(0,0,0,0)"] * 12,
-                        line=dict(color="black", width=3),
-                    ),
-                    hoverinfo="skip",
-                    opacity=1,
+                idx = 0
+                for m in range(1, 13):
+                    for w in range(1, 5):
+                        idx += 1
+                        thetas.append((idx - 1) * step + step / 2)
+                        labels.append(f"{meses_nome[m-1]} — Semana {w}")
+                        colors.append(orange if (m, w) in presentes else gray)
+
+                fig = go.Figure(
+                    data=[
+                        go.Barpolar(
+                            r=[1] * n_segments,
+                            theta=thetas,
+                            width=[step] * n_segments,
+                            marker_color=colors,
+                            marker_line_color="white",
+                            marker_line_width=1,
+                            hovertext=labels,
+                            hoverinfo="text",
+                            opacity=0.98,
+                        )
+                    ]
                 )
-            )
 
-            fig.update_layout(
-                title=f"Presença/Ausência — {especie_sel} ({local_sel})",
-                polar=dict(
-                    radialaxis=dict(visible=False, range=[0, 1.00]),
-                    angularaxis=dict(
-                        visible=True,
-                        tickmode="array",
-                        tickvals=month_centers,
-                        ticktext=meses_nome,
-                        tickfont=dict(size=14, color="rgba(255,255,255,0.45)"),
-                        rotation=0,
-                        direction="clockwise",
-                        showline=False,
-                        showgrid=False,
+                month_centers = [((m - 1) * 4 * step) + (2 * step) for m in range(1, 13)]
+                month_width = 4 * step
+
+                fig.add_trace(
+                    go.Barpolar(
+                        r=[1.00] * 12,
+                        theta=month_centers,
+                        width=[month_width] * 12,
+                        marker=dict(
+                            color=["rgba(0,0,0,0)"] * 12,
+                            line=dict(color="black", width=3),
+                        ),
+                        hoverinfo="skip",
+                        opacity=1,
+                    )
+                )
+
+                fig.update_layout(
+                    title=f"Presença/Ausência — {especie_sel} ({local_sel})",
+                    polar=dict(
+                        radialaxis=dict(visible=False, range=[0, 1.00]),
+                        angularaxis=dict(
+                            visible=True,
+                            tickmode="array",
+                            tickvals=month_centers,
+                            ticktext=meses_nome,
+                            tickfont=dict(size=14, color="rgba(255,255,255,0.45)"),
+                            rotation=0,
+                            direction="clockwise",
+                            showline=False,
+                            showgrid=False,
+                        ),
                     ),
-                ),
-                showlegend=False,
-                height=650,
-                margin=dict(l=20, r=20, t=70, b=20),
-            )
+                    showlegend=False,
+                    height=650,
+                    margin=dict(l=20, r=20, t=70, b=20),
+                )
 
-            st.plotly_chart(fig, width="stretch")
-            st.caption("Laranja = há registo nessa semana (dados/N_Semana) • Cinzento = sem registos")
+                st.plotly_chart(fig, width="stretch")
+                st.caption("Laranja = há registo nessa semana (dados/N_Semana) • Cinzento = sem registos")
+
+                if submitted_pa:
+                    scroll_to("out_pa")
 
 
 # =========================
-# TABLE TAB (auto-update, sem forms)
+# TABLE TAB
+# (agora com FORM para não rerunar a cada clique)
 # =========================
 with tab_tabela:
     st.subheader("📋 Tabela")
 
     df_base = df_amostras
 
+    if "table_ui_state" not in st.session_state:
+        st.session_state.table_ui_state = {}
+    if "table_filters_applied" not in st.session_state:
+        st.session_state.table_filters_applied = False
+
+    st.markdown('<div id="tab_table_filters"></div>', unsafe_allow_html=True)
+
     with st.expander("🧩 Abrir filtros", expanded=True):
-        cols_to_filter = [
-            "dados/N_Semana",
-            "dados/Data",
-            "dados/Local",
-            "Amostragem/Espécie_final",
-        ]
-        cols_to_filter = [c for c in cols_to_filter if c in df_base.columns]
+        with st.form("table_filters_form", clear_on_submit=False):
+            cols_to_filter = [
+                "dados/N_Semana",
+                "dados/Data",
+                "dados/Local",
+                "Amostragem/Espécie_final",
+            ]
+            cols_to_filter = [c for c in cols_to_filter if c in df_base.columns]
 
-        ui_state = {}
-        ncols = 3
-        rows = [cols_to_filter[i:i + ncols] for i in range(0, len(cols_to_filter), ncols)]
+            ui_state = {}
 
-        for row in rows:
-            cols = st.columns(ncols)
-            for i in range(ncols):
-                if i >= len(row):
-                    continue
+            ncols = 3
+            rows = [cols_to_filter[i:i + ncols] for i in range(0, len(cols_to_filter), ncols)]
 
-                colname = row[i]
-                s = df_base[colname]
-
-                if pd.api.types.is_numeric_dtype(s):
-                    numeric = pd.to_numeric(s, errors="coerce").dropna()
-                    if numeric.empty:
-                        ui_state[colname] = {"type": None, "value": None}
+            for row in rows:
+                cols = st.columns(ncols)
+                for i in range(ncols):
+                    if i >= len(row):
                         continue
 
-                    minv = float(numeric.min())
-                    maxv = float(numeric.max())
+                    colname = row[i]
+                    s = df_base[colname]
 
-                    with cols[i]:
-                        if minv >= maxv:
-                            st.write(f"**{colname}**")
-                            st.caption(f"Valor único: {minv}")
+                    if pd.api.types.is_numeric_dtype(s):
+                        numeric = pd.to_numeric(s, errors="coerce").dropna()
+                        if numeric.empty:
                             ui_state[colname] = {"type": None, "value": None}
-                        else:
-                            rng = st.slider(colname, min_value=minv, max_value=maxv, value=(minv, maxv), key=f"flt_{colname}")
-                            ui_state[colname] = {"type": "numeric", "value": rng}
-                else:
-                    dt = pd.to_datetime(s, errors="coerce", dayfirst=True, format="mixed")
-                    valid = dt.dropna()
+                            continue
 
-                    if len(valid) >= max(10, int(0.2 * len(s.dropna()))) and not valid.empty:
-                        mind = valid.min().date()
-                        maxd = valid.max().date()
+                        minv = float(numeric.min())
+                        maxv = float(numeric.max())
 
                         with cols[i]:
-                            dr = st.date_input(colname, value=(mind, maxd), key=f"flt_{colname}")
-                            if isinstance(dr, tuple) and len(dr) == 2:
-                                ui_state[colname] = {"type": "date", "value": dr}
-                            else:
+                            if minv >= maxv:
+                                st.write(f"**{colname}**")
+                                st.caption(f"Valor único: {minv}")
                                 ui_state[colname] = {"type": None, "value": None}
-                    else:
-                        s_safe = s.apply(to_hashable_text)
-                        try:
-                            nunique = s_safe.nunique(dropna=True)
-                        except Exception:
-                            nunique = 999999
-
-                        with cols[i]:
-                            if nunique <= 50:
-                                options = sorted([x for x in s_safe.dropna().astype(str).unique()])
-                                sel = st.multiselect(colname, options=options, default=[], key=f"flt_{colname}")
-                                ui_state[colname] = {"type": "categorical", "value": sel}
                             else:
-                                txt = st.text_input(f"{colname} (contains)", value="", key=f"flt_{colname}")
-                                ui_state[colname] = {"type": "text", "value": txt}
+                                # tenta carregar o range anterior
+                                prev = st.session_state.table_ui_state.get(colname, {}).get("value")
+                                default_rng = prev if (isinstance(prev, (tuple, list)) and len(prev) == 2) else (minv, maxv)
+                                rng = st.slider(colname, min_value=minv, max_value=maxv, value=(float(default_rng[0]), float(default_rng[1])))
+                                ui_state[colname] = {"type": "numeric", "value": rng}
+                    else:
+                        dt = pd.to_datetime(s, errors="coerce", dayfirst=True, format="mixed")
+                        valid = dt.dropna()
 
-    filtered = apply_filters(df_base, ui_state)
+                        if len(valid) >= max(10, int(0.2 * len(s.dropna()))) and not valid.empty:
+                            mind = valid.min().date()
+                            maxd = valid.max().date()
+
+                            with cols[i]:
+                                prev = st.session_state.table_ui_state.get(colname, {}).get("value")
+                                default_dr = prev if (isinstance(prev, tuple) and len(prev) == 2) else (mind, maxd)
+                                dr = st.date_input(colname, value=default_dr)
+                                if isinstance(dr, tuple) and len(dr) == 2:
+                                    ui_state[colname] = {"type": "date", "value": dr}
+                                else:
+                                    ui_state[colname] = {"type": None, "value": None}
+                        else:
+                            s_safe = s.apply(to_hashable_text)
+                            try:
+                                nunique = s_safe.nunique(dropna=True)
+                            except Exception:
+                                nunique = 999999
+
+                            with cols[i]:
+                                if nunique <= 50:
+                                    options = sorted([x for x in s_safe.dropna().astype(str).unique()])
+                                    prev = st.session_state.table_ui_state.get(colname, {}).get("value")
+                                    default_sel = prev if isinstance(prev, list) else []
+                                    sel = st.multiselect(colname, options=options, default=default_sel)
+                                    ui_state[colname] = {"type": "categorical", "value": sel}
+                                else:
+                                    prev = st.session_state.table_ui_state.get(colname, {}).get("value")
+                                    default_txt = prev if isinstance(prev, str) else ""
+                                    txt = st.text_input(f"{colname} (contains)", value=default_txt)
+                                    ui_state[colname] = {"type": "text", "value": txt}
+
+            cA, cB = st.columns([1, 1])
+            with cA:
+                apply_btn = st.form_submit_button("Aplicar filtros")
+            with cB:
+                clear_btn = st.form_submit_button("Limpar filtros")
+
+            if clear_btn:
+                st.session_state.table_ui_state = {}
+                st.session_state.table_filters_applied = False
+            elif apply_btn:
+                st.session_state.table_ui_state = ui_state
+                st.session_state.table_filters_applied = True
+
+    # aplica filtros só quando já foram "aplicados"
+    if st.session_state.table_filters_applied and st.session_state.table_ui_state:
+        filtered = apply_filters(df_base, st.session_state.table_ui_state)
+    else:
+        filtered = df_base.copy()
+
+    if apply_btn or clear_btn:
+        scroll_to("tab_table_filters")
 
     all_cols = list(filtered.columns)
     prefer = [
@@ -749,6 +852,7 @@ with tab_tabela:
 
     show_cols = st.multiselect("Colunas visíveis", options=all_cols, default=default_show, key="table_show_cols")
 
+    st.markdown('<div id="tab_table_results"></div>', unsafe_allow_html=True)
     st.dataframe(filtered[show_cols], width="stretch", height=520)
 
     buffer = io.BytesIO()
