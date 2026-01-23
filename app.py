@@ -284,12 +284,12 @@ FIXED_LOCAIS = ["Ponte de Lima", "Ericeira", "Vila Franca de Xira", "Lisboa - Es
 # Sidebar: navegação por secções
 # =========================
 OPTIONS = [
-    "📊 Outputs — KPIs & Top Tables",
-    "📍 Outputs — Espécies por local",
-    "📊 Outputs — Abundância média",
-    "📄 Outputs — PDF Lista de espécies",
-    "🟠 Outputs — Presença / Ausência",
-    "📋 Tabela — filtros + export",
+    "📋 Tabela",
+    "🐦‍⬛​ Visão geral",
+    "📍 Espécies por local",
+    "📊 Abundância média",
+    "📄 PDF Lista de espécies",
+    "✅ Presença / Ausência",
 ]
 
 # valor inicial (só 1x)
