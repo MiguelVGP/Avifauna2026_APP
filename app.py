@@ -32,40 +32,34 @@ st.set_page_config(page_title="Kobo Data Hub", layout="wide")
 
 
 # =========================
-# Utils (scroll) — SEM "scroll_to"
+# Utils (jump instantâneo para âncoras)
 # =========================
-def persist_scroll():
-    """Restaura o scroll sem animação (minimiza topo->volta)."""
+def jump_to(anchor_id: str):
+    """Salto instantâneo (sem smooth) para a âncora desejada."""
     components.html(
-        """
+        f"""
         <script>
-        (function () {
-          const key = "st_scroll_y";
+        (function() {{
+          const id = "{anchor_id}";
+          let tries = 0;
 
-          const save = () => {
-            try { window.parent.localStorage.setItem(key, String(window.parent.scrollY || 0)); } catch(e) {}
-          };
+          const jump = () => {{
+            const doc = window.document;
+            const el = doc.getElementById(id);
 
-          const restoreHard = () => {
-            let y = 0;
-            try { y = parseInt(window.parent.localStorage.getItem(key) || "0", 10) || 0; } catch(e) { y = 0; }
+            if (el) {{
+              el.scrollIntoView({{behavior: "auto", block: "start"}});
+              return;
+            }}
 
-            let n = 0;
-            const tick = () => {
-              window.parent.scrollTo(0, y);
-              n += 1;
-              if (n < 12) window.parent.requestAnimationFrame(tick);
-            };
-            tick();
-          };
+            tries += 1;
+            if (tries < 20) {{
+              setTimeout(jump, 60);
+            }}
+          }};
 
-          if (!window.parent.__stScrollPersist) {
-            window.parent.__stScrollPersist = true;
-            window.parent.addEventListener("scroll", save, { passive: true });
-          }
-
-          restoreHard();
-        })();
+          setTimeout(jump, 0);
+        }})();
         </script>
         """,
         height=0,
@@ -245,8 +239,10 @@ def apply_filters(df: pd.DataFrame, ui_state: dict) -> pd.DataFrame:
 # =========================
 st.title("Avifauna 2026 🐦 Kobo Data Hub")
 
-# Mantém a posição do scroll ao longo de reruns (sem animação)
-persist_scroll()
+# Se houver um salto pendente (de um submit anterior), faz já (instantâneo)
+if "jump_anchor" in st.session_state and st.session_state.jump_anchor:
+    jump_to(st.session_state.jump_anchor)
+    st.session_state.jump_anchor = ""
 
 b1, b2 = st.columns(2)
 
@@ -366,7 +362,9 @@ with tab_outputs:
 
     st.divider()
 
-    # ---- Registos por local + top espécie por local
+    # ---- Tabelas topo
+    st.markdown('<div id="out_top_tables"></div>', unsafe_allow_html=True)
+
     c1, c2 = st.columns([1, 1])
 
     with c1:
@@ -403,7 +401,8 @@ with tab_outputs:
 
     st.divider()
 
-    # ---- Espécies por local (FORM)
+    # ---- Espécies por local
+    st.markdown('<div id="out_species_by_local"></div>', unsafe_allow_html=True)
     st.subheader("📍 Espécies por local")
 
     if "out_local_sel" not in st.session_state:
@@ -414,6 +413,8 @@ with tab_outputs:
         submitted = st.form_submit_button("Aplicar")
         if submitted:
             st.session_state.out_local_sel = local_sel
+            st.session_state.jump_anchor = "out_species_by_local"
+            st.rerun()
 
     local_sel = st.session_state.out_local_sel
 
@@ -423,7 +424,7 @@ with tab_outputs:
     else:
         base = df_amostras[[LOCAL_COL, SPEC_COL, INDIV_COL]].copy()
         base[LOCAL_COL] = base[LOCAL_COL].fillna("").astype(str).str.strip()
-        base[SPEC_COL] = base[SPEC_COL].fillna("").astype(str).str.strip()
+        base[SPEC_COL]  = base[SPEC_COL].fillna("").astype(str).str.strip()
         base[INDIV_COL] = pd.to_numeric(base[INDIV_COL], errors="coerce").fillna(0)
 
         df_loc = base[base[LOCAL_COL] == local_sel]
@@ -458,7 +459,8 @@ with tab_outputs:
 
     st.divider()
 
-    # ---- Abundância média (FORM)
+    # ---- Abundância média
+    st.markdown('<div id="out_abund"></div>', unsafe_allow_html=True)
     st.subheader("📊 Abundância média por espécie (Nº indivíduos / 52 semanas)")
 
     if "out_abund_local" not in st.session_state:
@@ -479,6 +481,8 @@ with tab_outputs:
         if submitted_abund:
             st.session_state.out_abund_local = local_plot
             st.session_state.out_abund_topn = top_n
+            st.session_state.jump_anchor = "out_abund"
+            st.rerun()
 
     local_plot = st.session_state.out_abund_local
     top_n = int(st.session_state.out_abund_topn)
@@ -488,7 +492,7 @@ with tab_outputs:
     else:
         base = df_amostras[[LOCAL_COL, SPEC_COL, INDIV_COL]].copy()
         base[LOCAL_COL] = base[LOCAL_COL].fillna("").astype(str).str.strip()
-        base[SPEC_COL] = base[SPEC_COL].fillna("").astype(str).str.strip()
+        base[SPEC_COL]  = base[SPEC_COL].fillna("").astype(str).str.strip()
         base[INDIV_COL] = pd.to_numeric(base[INDIV_COL], errors="coerce").fillna(0)
 
         if local_plot != "Total":
@@ -520,14 +524,18 @@ with tab_outputs:
 
     st.divider()
 
-    # ---- PDF Lista de espécies (FORM + toggle)
+    # ---- PDF Lista de espécies
+    st.markdown('<div id="out_pdf"></div>', unsafe_allow_html=True)
     st.subheader("Lista de Espécies (PDF)")
 
     if "show_lista_especies" not in st.session_state:
         st.session_state.show_lista_especies = False
 
+    # toggle com “salto instantâneo” para a própria secção
     if st.button("📄 Lista de Espécies"):
         st.session_state.show_lista_especies = not st.session_state.show_lista_especies
+        st.session_state.jump_anchor = "out_pdf"
+        st.rerun()
 
     if st.session_state.show_lista_especies:
         st.subheader("📄 Gerar PDF — Lista de Espécies")
@@ -547,6 +555,8 @@ with tab_outputs:
             submitted_pdf = st.form_submit_button("Gerar / Atualizar")
             if submitted_pdf:
                 st.session_state.out_pdf_local = local_sel_pdf
+                st.session_state.jump_anchor = "out_pdf"
+                st.rerun()
 
         local_sel_pdf = st.session_state.out_pdf_local
 
@@ -555,7 +565,7 @@ with tab_outputs:
         else:
             base = df_amostras[[LOCAL_COL, SPEC_COL, INDIV_COL]].copy()
             base[LOCAL_COL] = base[LOCAL_COL].fillna("").astype(str).str.strip()
-            base[SPEC_COL] = base[SPEC_COL].fillna("").astype(str).str.strip()
+            base[SPEC_COL]  = base[SPEC_COL].fillna("").astype(str).str.strip()
             base[INDIV_COL] = pd.to_numeric(base[INDIV_COL], errors="coerce").fillna(0)
 
             df_loc = base.copy() if local_sel_pdf == "Total" else base[base[LOCAL_COL] == local_sel_pdf]
@@ -584,9 +594,11 @@ with tab_outputs:
 
     st.divider()
 
-    # ---- Presença/Ausência (FORM)
+    # ---- Presença/Ausência
+    st.markdown('<div id="out_pa"></div>', unsafe_allow_html=True)
     st.subheader("🟠 Presença / Ausência por mês e semana (circular)")
 
+    FIXED_LOCAIS = ["Ponte de Lima", "Ericeira", "Vila Franca de Xira", "Lisboa - Estefânia"]
     locais_opts = ["Total"] + FIXED_LOCAIS
 
     if df_amostras.empty or any(c not in df_amostras.columns for c in [WEEK_COL, LOCAL_COL, SPEC_COL]):
@@ -635,6 +647,8 @@ with tab_outputs:
                     if submitted_pa:
                         st.session_state.out_pa_local = local_sel_pa
                         st.session_state.out_pa_especie = especie_sel_pa
+                        st.session_state.jump_anchor = "out_pa"
+                        st.rerun()
 
                 local_sel = st.session_state.out_pa_local
                 especie_sel = st.session_state.out_pa_especie
@@ -727,6 +741,7 @@ with tab_outputs:
 # TABLE TAB
 # =========================
 with tab_tabela:
+    st.markdown('<div id="tab_table_top"></div>', unsafe_allow_html=True)
     st.subheader("📋 Tabela")
 
     df_base = df_amostras
@@ -735,6 +750,8 @@ with tab_tabela:
         st.session_state.table_ui_state = {}
     if "table_filters_applied" not in st.session_state:
         st.session_state.table_filters_applied = False
+
+    st.markdown('<div id="tab_table_filters"></div>', unsafe_allow_html=True)
 
     with st.expander("🧩 Abrir filtros", expanded=True):
         with st.form("table_filters_form", clear_on_submit=False):
@@ -824,9 +841,13 @@ with tab_tabela:
             if clear_btn:
                 st.session_state.table_ui_state = {}
                 st.session_state.table_filters_applied = False
+                st.session_state.jump_anchor = "tab_table_filters"
+                st.rerun()
             elif apply_btn:
                 st.session_state.table_ui_state = ui_state
                 st.session_state.table_filters_applied = True
+                st.session_state.jump_anchor = "tab_table_filters"
+                st.rerun()
 
     if st.session_state.table_filters_applied and st.session_state.table_ui_state:
         filtered = apply_filters(df_base, st.session_state.table_ui_state)
@@ -845,6 +866,7 @@ with tab_tabela:
 
     show_cols = st.multiselect("Colunas visíveis", options=all_cols, default=default_show, key="table_show_cols")
 
+    st.markdown('<div id="tab_table_results"></div>', unsafe_allow_html=True)
     st.dataframe(filtered[show_cols], width="stretch", height=520)
 
     buffer = io.BytesIO()
