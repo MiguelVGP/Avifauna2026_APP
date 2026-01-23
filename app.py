@@ -254,6 +254,7 @@ if st.button("Sair"):
     st.session_state.authenticated = False
     st.rerun()
 
+
 # =========================
 # Load Data
 # =========================
@@ -271,38 +272,34 @@ INDIV_COL = "Amostragem/N_Indiv_duos"
 
 FIXED_LOCAIS = ["Ponte de Lima", "Ericeira", "Vila Franca de Xira", "Lisboa - Estefânia"]
 
+
 # =========================
-# Sidebar: navegação por secções (isto elimina o problema do scroll)
-# =========================
-# =========================
-# Sidebar: navegação por secções
+# Sidebar: navegação por secções (com emojis)
 # =========================
 OPTIONS = [
     "📋 Tabela",
-    "🐦‍⬛​ Visão geral",
+    "🐦‍⬛ Visão geral",
     "📍 Espécies por local",
     "📊 Abundância média",
     "📄 PDF Lista de espécies",
     "✅ Presença / Ausência",
 ]
 
-# valor inicial (só 1x)
 if "section" not in st.session_state:
     st.session_state.section = OPTIONS[0]
 
 section = st.sidebar.radio(
     "Secção",
     OPTIONS,
-    key="section",  # <- isto é o importante
+    key="section",
 )
-
 
 
 # =========================
 # RENDER: cada secção começa no TOPO
 # =========================
-if section == "🐦‍⬛​ Visão geral":
-    st.subheader("🐦‍⬛​ Visão geral")
+if section == "🐦‍⬛ Visão geral":
+    st.subheader("🐦‍⬛ Visão geral")
 
     k1, k2 = st.columns(2)
     total_registos = len(df_amostras) if not df_amostras.empty else len(df)
@@ -355,7 +352,11 @@ elif section == "📍 Espécies por local":
         st.session_state.out_local_sel = FIXED_LOCAIS[0]
 
     with st.form("form_species_by_local", clear_on_submit=False):
-        local_sel = st.selectbox("Local", FIXED_LOCAIS, index=FIXED_LOCAIS.index(st.session_state.out_local_sel))
+        local_sel = st.selectbox(
+            "Local",
+            FIXED_LOCAIS,
+            index=FIXED_LOCAIS.index(st.session_state.out_local_sel),
+        )
         submitted = st.form_submit_button("Aplicar")
         if submitted:
             st.session_state.out_local_sel = local_sel
@@ -368,7 +369,7 @@ elif section == "📍 Espécies por local":
     else:
         base = df_amostras[[LOCAL_COL, SPEC_COL, INDIV_COL]].copy()
         base[LOCAL_COL] = base[LOCAL_COL].fillna("").astype(str).str.strip()
-        base[SPEC_COL]  = base[SPEC_COL].fillna("").astype(str).str.strip()
+        base[SPEC_COL] = base[SPEC_COL].fillna("").astype(str).str.strip()
         base[INDIV_COL] = pd.to_numeric(base[INDIV_COL], errors="coerce").fillna(0)
 
         df_loc = base[base[LOCAL_COL] == local_sel]
@@ -418,7 +419,13 @@ elif section == "📊 Abundância média":
             locais_plot,
             index=locais_plot.index(st.session_state.out_abund_local),
         )
-        top_n = st.slider("Top N espécies", min_value=3, max_value=18, value=int(st.session_state.out_abund_topn), step=3)
+        top_n = st.slider(
+            "Top N espécies",
+            min_value=3,
+            max_value=18,
+            value=int(st.session_state.out_abund_topn),
+            step=3,
+        )
         submitted_abund = st.form_submit_button("Aplicar")
         if submitted_abund:
             st.session_state.out_abund_local = local_plot
@@ -432,7 +439,7 @@ elif section == "📊 Abundância média":
     else:
         base = df_amostras[[LOCAL_COL, SPEC_COL, INDIV_COL]].copy()
         base[LOCAL_COL] = base[LOCAL_COL].fillna("").astype(str).str.strip()
-        base[SPEC_COL]  = base[SPEC_COL].fillna("").astype(str).str.strip()
+        base[SPEC_COL] = base[SPEC_COL].fillna("").astype(str).str.strip()
         base[INDIV_COL] = pd.to_numeric(base[INDIV_COL], errors="coerce").fillna(0)
 
         if local_plot != "Total":
@@ -488,7 +495,7 @@ elif section == "📄 PDF Lista de espécies":
     else:
         base = df_amostras[[LOCAL_COL, SPEC_COL, INDIV_COL]].copy()
         base[LOCAL_COL] = base[LOCAL_COL].fillna("").astype(str).str.strip()
-        base[SPEC_COL]  = base[SPEC_COL].fillna("").astype(str).str.strip()
+        base[SPEC_COL] = base[SPEC_COL].fillna("").astype(str).str.strip()
         base[INDIV_COL] = pd.to_numeric(base[INDIV_COL], errors="coerce").fillna(0)
 
         df_loc = base.copy() if local_sel_pdf == "Total" else base[base[LOCAL_COL] == local_sel_pdf]
@@ -524,7 +531,7 @@ elif section == "✅ Presença / Ausência":
     if df_amostras.empty or any(c not in df_amostras.columns for c in [WEEK_COL, LOCAL_COL, SPEC_COL]):
         st.info("Faltam colunas para gerar o gráfico (dados/N_Semana, dados/Local, Amostragem/Espécie_final).")
     else:
-        base = df_amostras[[WEEK_COL, LOCAL_COL, SPEC_COL]].copy()
+        base = = df_amostras[[WEEK_COL, LOCAL_COL, SPEC_COL]].copy()
         base[LOCAL_COL] = base[LOCAL_COL].fillna("").astype(str).str.strip()
         base[SPEC_COL] = base[SPEC_COL].fillna("").astype(str).str.strip()
         base[WEEK_COL] = pd.to_numeric(base[WEEK_COL], errors="coerce")
@@ -705,8 +712,12 @@ elif section == "📋 Tabela":
                             else:
                                 prev = st.session_state.table_ui_state.get(colname, {}).get("value")
                                 default_rng = prev if (isinstance(prev, (tuple, list)) and len(prev) == 2) else (minv, maxv)
-                                rng = st.slider(colname, min_value=minv, max_value=maxv,
-                                                value=(float(default_rng[0]), float(default_rng[1])))
+                                rng = st.slider(
+                                    colname,
+                                    min_value=minv,
+                                    max_value=maxv,
+                                    value=(float(default_rng[0]), float(default_rng[1])),
+                                )
                                 ui_state[colname] = {"type": "numeric", "value": rng}
                     else:
                         dt = pd.to_datetime(s, errors="coerce", dayfirst=True, format="mixed")
