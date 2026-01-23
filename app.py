@@ -531,7 +531,7 @@ elif section == "✅ Presença / Ausência":
     if df_amostras.empty or any(c not in df_amostras.columns for c in [WEEK_COL, LOCAL_COL, SPEC_COL]):
         st.info("Faltam colunas para gerar o gráfico (dados/N_Semana, dados/Local, Amostragem/Espécie_final).")
     else:
-        base = = df_amostras[[WEEK_COL, LOCAL_COL, SPEC_COL]].copy()
+        base = df_amostras[[WEEK_COL, LOCAL_COL, SPEC_COL]].copy()
         base[LOCAL_COL] = base[LOCAL_COL].fillna("").astype(str).str.strip()
         base[SPEC_COL] = base[SPEC_COL].fillna("").astype(str).str.strip()
         base[WEEK_COL] = pd.to_numeric(base[WEEK_COL], errors="coerce")
