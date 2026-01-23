@@ -20,9 +20,9 @@ import plotly.graph_objects as go
 # FIXOS (Kobo + Password)
 # =========================
 KOBO_BASE_URL = "https://kf.kobotoolbox.org"
-ASSET_UID = "aheNScdS989eMBppfHUHeW"
+ASSET_UID = "ajHjKHzV37ik8jJwLBwBrj"
 API_TOKEN = "8cd83af6fdc8e74c1dfa40430e7a88b5acc04b01"
-APP_PASSWORD = "teste"
+APP_PASSWORD = "BiotaAvifauna"
 DEFAULT_LIMIT = 5000
 
 # =========================
