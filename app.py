@@ -285,7 +285,11 @@ OPTIONS = [
     "✅ Presença / Ausência",
 ]
 
-if "section" not in st.session_state:
+#if "section" not in st.session_state:
+    #st.session_state.section = OPTIONS[0]
+
+# valor inicial (só 1x) + proteção se houver valor antigo guardado
+if "section" not in st.session_state or st.session_state.section not in OPTIONS:
     st.session_state.section = OPTIONS[0]
 
 section = st.sidebar.radio(
