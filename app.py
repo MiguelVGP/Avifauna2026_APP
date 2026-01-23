@@ -307,8 +307,8 @@ section = st.sidebar.radio(
 # =========================
 # RENDER: cada secção começa no TOPO
 # =========================
-if section == "📊 Outputs — KPIs & Top Tables":
-    st.subheader("📊 Outputs — KPIs & Top Tables")
+if section == "🐦‍⬛​ Visão geral":
+    st.subheader("🐦‍⬛​ Visão geral")
 
     k1, k2 = st.columns(2)
     total_registos = len(df_amostras) if not df_amostras.empty else len(df)
@@ -327,7 +327,7 @@ if section == "📊 Outputs — KPIs & Top Tables":
     c1, c2 = st.columns(2)
 
     with c1:
-        st.subheader("📍 Registos por local (amostras)")
+        st.subheader("📍 Registos por local")
         if df_amostras.empty or LOCAL_COL not in df_amostras.columns:
             st.info("Não encontrei a coluna 'Amostragem' ou 'dados/Local'.")
         else:
@@ -338,7 +338,7 @@ if section == "📊 Outputs — KPIs & Top Tables":
             st.dataframe(registos_por_local, width="stretch", height=420)
 
     with c2:
-        st.subheader("🦉 Espécie mais observada por local (por Nº indivíduos)")
+        st.subheader("🦉 Espécie mais observada por local")
         if df_amostras.empty or any(c not in df_amostras.columns for c in [LOCAL_COL, SPEC_COL, INDIV_COL]):
             st.info("Ainda não consegui gerar as colunas necessárias.")
         else:
