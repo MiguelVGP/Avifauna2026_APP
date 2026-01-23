@@ -6,7 +6,6 @@ from datetime import date
 import requests
 import pandas as pd
 import streamlit as st
-import streamlit.components.v1 as components
 
 from reportlab.pdfgen import canvas
 from reportlab.lib.pagesizes import A4
@@ -29,41 +28,6 @@ DEFAULT_LIMIT = 5000
 # UI (sem CSS)
 # =========================
 st.set_page_config(page_title="Kobo Data Hub", layout="wide")
-
-
-# =========================
-# Utils (jump instantâneo para âncoras)
-# =========================
-def jump_to(anchor_id: str):
-    """Salto instantâneo (sem smooth) para a âncora desejada."""
-    components.html(
-        f"""
-        <script>
-        (function() {{
-          const id = "{anchor_id}";
-          let tries = 0;
-
-          const jump = () => {{
-            const doc = window.document;
-            const el = doc.getElementById(id);
-
-            if (el) {{
-              el.scrollIntoView({{behavior: "auto", block: "start"}});
-              return;
-            }}
-
-            tries += 1;
-            if (tries < 20) {{
-              setTimeout(jump, 60);
-            }}
-          }};
-
-          setTimeout(jump, 0);
-        }})();
-        </script>
-        """,
-        height=0,
-    )
 
 
 # =========================
@@ -193,10 +157,6 @@ def fetch_kobo_raw(limit: int = 5000) -> pd.DataFrame:
     return df_raw
 
 
-def prepare_submissions_df(df_raw: pd.DataFrame) -> pd.DataFrame:
-    return normalize_complex_columns(df_raw)
-
-
 def apply_filters(df: pd.DataFrame, ui_state: dict) -> pd.DataFrame:
     out = df.copy()
 
@@ -232,57 +192,6 @@ def apply_filters(df: pd.DataFrame, ui_state: dict) -> pd.DataFrame:
             out = out[mask]
 
     return out
-
-
-# =========================
-# Header + Controls
-# =========================
-st.title("Avifauna 2026 🐦 Kobo Data Hub")
-
-# Se houver um salto pendente (de um submit anterior), faz já (instantâneo)
-if "jump_anchor" in st.session_state and st.session_state.jump_anchor:
-    jump_to(st.session_state.jump_anchor)
-    st.session_state.jump_anchor = ""
-
-b1, b2 = st.columns(2)
-
-with b1:
-    if st.button("Recarregar"):
-        st.cache_data.clear()
-        st.rerun()
-
-with b2:
-    if st.button("Sair"):
-        st.session_state.authenticated = False
-        st.rerun()
-
-limit = DEFAULT_LIMIT
-
-
-# =========================
-# Load Data
-# =========================
-with st.spinner("A carregar dados do Kobo..."):
-    try:
-        df_raw = fetch_kobo_raw(limit=int(limit))
-    except requests.HTTPError as e:
-        st.error("Erro a ligar ao Kobo.")
-        st.exception(e)
-        st.stop()
-    except Exception as e:
-        st.error("Erro inesperado ao carregar dados.")
-        st.exception(e)
-        st.stop()
-
-df = prepare_submissions_df(df_raw)
-df_amostras_raw = explode_amostragem(df_raw, amostragem_col="Amostragem")
-df_amostras = normalize_complex_columns(df_amostras_raw) if not df_amostras_raw.empty else pd.DataFrame()
-
-
-# =========================
-# Tabs
-# =========================
-tab_tabela, tab_outputs = st.tabs(["📋 Tabela", "📊 Outputs"])
 
 
 def build_species_list_pdf(local: str, species_df: pd.DataFrame) -> bytes:
@@ -337,17 +246,71 @@ def build_species_list_pdf(local: str, species_df: pd.DataFrame) -> bytes:
 
 
 # =========================
-# OUTPUTS TAB
+# Header + Controls
 # =========================
-with tab_outputs:
-    LOCAL_COL = "dados/Local"
-    WEEK_COL = "dados/N_Semana"
-    SPEC_COL = "Amostragem/Espécie_final"
-    INDIV_COL = "Amostragem/N_Indiv_duos"
+st.title("Avifauna 2026 🐦 Kobo Data Hub")
 
-    FIXED_LOCAIS = ["Ponte de Lima", "Ericeira", "Vila Franca de Xira", "Lisboa - Estefânia"]
+b1, b2 = st.columns(2)
+with b1:
+    if st.button("Recarregar"):
+        st.cache_data.clear()
+        st.rerun()
+with b2:
+    if st.button("Sair"):
+        st.session_state.authenticated = False
+        st.rerun()
 
-    # KPIs
+# =========================
+# Load Data
+# =========================
+with st.spinner("A carregar dados do Kobo..."):
+    df_raw = fetch_kobo_raw(limit=DEFAULT_LIMIT)
+
+df = normalize_complex_columns(df_raw)
+df_amostras_raw = explode_amostragem(df_raw, amostragem_col="Amostragem")
+df_amostras = normalize_complex_columns(df_amostras_raw) if not df_amostras_raw.empty else pd.DataFrame()
+
+LOCAL_COL = "dados/Local"
+WEEK_COL = "dados/N_Semana"
+SPEC_COL = "Amostragem/Espécie_final"
+INDIV_COL = "Amostragem/N_Indiv_duos"
+
+FIXED_LOCAIS = ["Ponte de Lima", "Ericeira", "Vila Franca de Xira", "Lisboa - Estefânia"]
+
+# =========================
+# Sidebar: navegação por secções (isto elimina o problema do scroll)
+# =========================
+if "section" not in st.session_state:
+    st.session_state.section = "📊 Outputs — KPIs & Top Tables"
+
+section = st.sidebar.radio(
+    "Secção",
+    [
+        "📊 Outputs — KPIs & Top Tables",
+        "📍 Outputs — Espécies por local",
+        "📊 Outputs — Abundância média",
+        "📄 Outputs — PDF Lista de espécies",
+        "🟠 Outputs — Presença / Ausência",
+        "📋 Tabela — filtros + export",
+    ],
+    index=[
+        "📊 Outputs — KPIs & Top Tables",
+        "📍 Outputs — Espécies por local",
+        "📊 Outputs — Abundância média",
+        "📄 Outputs — PDF Lista de espécies",
+        "🟠 Outputs — Presença / Ausência",
+        "📋 Tabela — filtros + export",
+    ].index(st.session_state.section),
+)
+st.session_state.section = section
+
+
+# =========================
+# RENDER: cada secção começa no TOPO
+# =========================
+if section == "📊 Outputs — KPIs & Top Tables":
+    st.subheader("📊 Outputs — KPIs & Top Tables")
+
     k1, k2 = st.columns(2)
     total_registos = len(df_amostras) if not df_amostras.empty else len(df)
     k1.metric("Total de registos", f"{total_registos:,}".replace(",", " "))
@@ -362,10 +325,7 @@ with tab_outputs:
 
     st.divider()
 
-    # ---- Tabelas topo
-    st.markdown('<div id="out_top_tables"></div>', unsafe_allow_html=True)
-
-    c1, c2 = st.columns([1, 1])
+    c1, c2 = st.columns(2)
 
     with c1:
         st.subheader("📍 Registos por local (amostras)")
@@ -373,14 +333,10 @@ with tab_outputs:
             st.info("Não encontrei a coluna 'Amostragem' ou 'dados/Local'.")
         else:
             registos_por_local = (
-                df_amostras[LOCAL_COL]
-                .fillna("Sem local")
-                .astype(str)
-                .value_counts()
-                .reset_index()
+                df_amostras[LOCAL_COL].fillna("Sem local").astype(str).value_counts().reset_index()
             )
             registos_por_local.columns = ["Local", "Nº de registos"]
-            st.dataframe(registos_por_local, width="stretch", height=260)
+            st.dataframe(registos_por_local, width="stretch", height=420)
 
     with c2:
         st.subheader("🦉 Espécie mais observada por local (por Nº indivíduos)")
@@ -395,15 +351,12 @@ with tab_outputs:
             counts = tmp2.groupby([LOCAL_COL, SPEC_COL])[INDIV_COL].sum().reset_index(name="Nº indivíduos")
             idx = counts.groupby(LOCAL_COL)["Nº indivíduos"].idxmax()
             top = counts.loc[idx].sort_values(LOCAL_COL)
-
             top = top.rename(columns={LOCAL_COL: "Local", SPEC_COL: "Espécie mais observada"})
-            st.dataframe(top, width="stretch", height=260)
+            st.dataframe(top, width="stretch", height=420)
 
-    st.divider()
 
-    # ---- Espécies por local
-    st.markdown('<div id="out_species_by_local"></div>', unsafe_allow_html=True)
-    st.subheader("📍 Espécies por local")
+elif section == "📍 Outputs — Espécies por local":
+    st.subheader("📍 Outputs — Espécies por local")
 
     if "out_local_sel" not in st.session_state:
         st.session_state.out_local_sel = FIXED_LOCAIS[0]
@@ -413,8 +366,6 @@ with tab_outputs:
         submitted = st.form_submit_button("Aplicar")
         if submitted:
             st.session_state.out_local_sel = local_sel
-            st.session_state.jump_anchor = "out_species_by_local"
-            st.rerun()
 
     local_sel = st.session_state.out_local_sel
 
@@ -442,7 +393,7 @@ with tab_outputs:
                 .reset_index(drop=True)
             )
 
-    st.dataframe(tabela, width="stretch", height=420)
+    st.dataframe(tabela, width="stretch", height=520)
 
     buffer = io.BytesIO()
     with pd.ExcelWriter(buffer, engine="openpyxl") as writer:
@@ -457,11 +408,9 @@ with tab_outputs:
         key=f"download_excel_local_{local_sel}",
     )
 
-    st.divider()
 
-    # ---- Abundância média
-    st.markdown('<div id="out_abund"></div>', unsafe_allow_html=True)
-    st.subheader("📊 Abundância média por espécie (Nº indivíduos / 52 semanas)")
+elif section == "📊 Outputs — Abundância média":
+    st.subheader("📊 Outputs — Abundância média por espécie (N/52)")
 
     if "out_abund_local" not in st.session_state:
         st.session_state.out_abund_local = "Total"
@@ -481,8 +430,6 @@ with tab_outputs:
         if submitted_abund:
             st.session_state.out_abund_local = local_plot
             st.session_state.out_abund_topn = top_n
-            st.session_state.jump_anchor = "out_abund"
-            st.rerun()
 
     local_plot = st.session_state.out_abund_local
     top_n = int(st.session_state.out_abund_topn)
@@ -507,7 +454,6 @@ with tab_outputs:
                 .reset_index()
                 .rename(columns={SPEC_COL: "Espécie", INDIV_COL: "Total indivíduos"})
             )
-
             agg["Abundância média (N/52)"] = agg["Total indivíduos"] / 52.0
             agg = agg.sort_values("Abundância média (N/52)", ascending=True).tail(top_n)
 
@@ -519,86 +465,67 @@ with tab_outputs:
                 hover_data={"Total indivíduos": True, "Abundância média (N/52)": ":.2f"},
                 title=f"Abundância média por espécie — {local_plot}",
             )
-            fig.update_layout(height=700, margin=dict(l=20, r=20, t=60, b=20))
+            fig.update_layout(height=720, margin=dict(l=20, r=20, t=60, b=20))
             st.plotly_chart(fig, width="stretch")
 
-    st.divider()
 
-    # ---- PDF Lista de espécies
-    st.markdown('<div id="out_pdf"></div>', unsafe_allow_html=True)
-    st.subheader("Lista de Espécies (PDF)")
+elif section == "📄 Outputs — PDF Lista de espécies":
+    st.subheader("📄 Outputs — PDF Lista de espécies")
 
-    if "show_lista_especies" not in st.session_state:
-        st.session_state.show_lista_especies = False
+    if "out_pdf_local" not in st.session_state:
+        st.session_state.out_pdf_local = "Total"
 
-    # toggle com “salto instantâneo” para a própria secção
-    if st.button("📄 Lista de Espécies"):
-        st.session_state.show_lista_especies = not st.session_state.show_lista_especies
-        st.session_state.jump_anchor = "out_pdf"
-        st.rerun()
+    locais_pdf = ["Total"] + FIXED_LOCAIS
 
-    if st.session_state.show_lista_especies:
-        st.subheader("📄 Gerar PDF — Lista de Espécies")
+    with st.form("form_pdf", clear_on_submit=False):
+        local_sel_pdf = st.selectbox(
+            "Local",
+            locais_pdf,
+            index=locais_pdf.index(st.session_state.out_pdf_local),
+            key="pdf_local_sel_total_form",
+        )
+        submitted_pdf = st.form_submit_button("Gerar / Atualizar")
+        if submitted_pdf:
+            st.session_state.out_pdf_local = local_sel_pdf
 
-        if "out_pdf_local" not in st.session_state:
-            st.session_state.out_pdf_local = "Total"
+    local_sel_pdf = st.session_state.out_pdf_local
 
-        locais_pdf = ["Total"] + FIXED_LOCAIS
+    if df_amostras.empty or any(c not in df_amostras.columns for c in [LOCAL_COL, SPEC_COL, INDIV_COL]):
+        st.info("Faltam colunas necessárias para gerar a lista.")
+    else:
+        base = df_amostras[[LOCAL_COL, SPEC_COL, INDIV_COL]].copy()
+        base[LOCAL_COL] = base[LOCAL_COL].fillna("").astype(str).str.strip()
+        base[SPEC_COL]  = base[SPEC_COL].fillna("").astype(str).str.strip()
+        base[INDIV_COL] = pd.to_numeric(base[INDIV_COL], errors="coerce").fillna(0)
 
-        with st.form("form_pdf", clear_on_submit=False):
-            local_sel_pdf = st.selectbox(
-                "Local",
-                locais_pdf,
-                index=locais_pdf.index(st.session_state.out_pdf_local),
-                key="pdf_local_sel_total_form",
-            )
-            submitted_pdf = st.form_submit_button("Gerar / Atualizar")
-            if submitted_pdf:
-                st.session_state.out_pdf_local = local_sel_pdf
-                st.session_state.jump_anchor = "out_pdf"
-                st.rerun()
+        df_loc = base.copy() if local_sel_pdf == "Total" else base[base[LOCAL_COL] == local_sel_pdf]
 
-        local_sel_pdf = st.session_state.out_pdf_local
-
-        if df_amostras.empty or any(c not in df_amostras.columns for c in [LOCAL_COL, SPEC_COL, INDIV_COL]):
-            st.info("Faltam colunas necessárias para gerar a lista.")
+        if df_loc.empty:
+            st.warning("Sem registos para este local.")
         else:
-            base = df_amostras[[LOCAL_COL, SPEC_COL, INDIV_COL]].copy()
-            base[LOCAL_COL] = base[LOCAL_COL].fillna("").astype(str).str.strip()
-            base[SPEC_COL]  = base[SPEC_COL].fillna("").astype(str).str.strip()
-            base[INDIV_COL] = pd.to_numeric(base[INDIV_COL], errors="coerce").fillna(0)
+            species_table = (
+                df_loc.groupby(SPEC_COL, dropna=False)[INDIV_COL]
+                .sum()
+                .reset_index()
+                .rename(columns={SPEC_COL: "Espécie", INDIV_COL: "Nº indivíduos"})
+                .sort_values(["Nº indivíduos", "Espécie"], ascending=[False, True])
+                .reset_index(drop=True)
+            )
 
-            df_loc = base.copy() if local_sel_pdf == "Total" else base[base[LOCAL_COL] == local_sel_pdf]
+            pdf_bytes = build_species_list_pdf(local_sel_pdf, species_table)
 
-            if df_loc.empty:
-                st.warning("Sem registos para este local.")
-            else:
-                species_table = (
-                    df_loc.groupby(SPEC_COL, dropna=False)[INDIV_COL]
-                    .sum()
-                    .reset_index()
-                    .rename(columns={SPEC_COL: "Espécie", INDIV_COL: "Nº indivíduos"})
-                    .sort_values(["Nº indivíduos", "Espécie"], ascending=[False, True])
-                    .reset_index(drop=True)
-                )
+            st.download_button(
+                "⬇️ Download PDF",
+                data=pdf_bytes,
+                file_name=f"lista_especies_{local_sel_pdf.replace(' ', '_')}_{date.today().strftime('%Y%m%d')}.pdf",
+                mime="application/pdf",
+                key=f"download_pdf_{local_sel_pdf}",
+            )
 
-                pdf_bytes = build_species_list_pdf(local_sel_pdf, species_table)
 
-                st.download_button(
-                    "⬇️ Download PDF",
-                    data=pdf_bytes,
-                    file_name=f"lista_especies_{local_sel_pdf.replace(' ', '_')}_{date.today().strftime('%Y%m%d')}.pdf",
-                    mime="application/pdf",
-                    key=f"download_pdf_{local_sel_pdf}",
-                )
+elif section == "🟠 Outputs — Presença / Ausência":
+    st.subheader("🟠 Outputs — Presença / Ausência por mês e semana (circular)")
 
-    st.divider()
-
-    # ---- Presença/Ausência
-    st.markdown('<div id="out_pa"></div>', unsafe_allow_html=True)
-    st.subheader("🟠 Presença / Ausência por mês e semana (circular)")
-
-    FIXED_LOCAIS = ["Ponte de Lima", "Ericeira", "Vila Franca de Xira", "Lisboa - Estefânia"]
     locais_opts = ["Total"] + FIXED_LOCAIS
 
     if df_amostras.empty or any(c not in df_amostras.columns for c in [WEEK_COL, LOCAL_COL, SPEC_COL]):
@@ -647,8 +574,6 @@ with tab_outputs:
                     if submitted_pa:
                         st.session_state.out_pa_local = local_sel_pa
                         st.session_state.out_pa_especie = especie_sel_pa
-                        st.session_state.jump_anchor = "out_pa"
-                        st.rerun()
 
                 local_sel = st.session_state.out_pa_local
                 especie_sel = st.session_state.out_pa_especie
@@ -721,7 +646,6 @@ with tab_outputs:
                             tickmode="array",
                             tickvals=month_centers,
                             ticktext=meses_nome,
-                            tickfont=dict(size=14, color="rgba(255,255,255,0.45)"),
                             rotation=0,
                             direction="clockwise",
                             showline=False,
@@ -737,21 +661,15 @@ with tab_outputs:
                 st.caption("Laranja = há registo nessa semana (dados/N_Semana) • Cinzento = sem registos")
 
 
-# =========================
-# TABLE TAB
-# =========================
-with tab_tabela:
-    st.markdown('<div id="tab_table_top"></div>', unsafe_allow_html=True)
-    st.subheader("📋 Tabela")
+elif section == "📋 Tabela — filtros + export":
+    st.subheader("📋 Tabela — filtros + export")
 
-    df_base = df_amostras
+    df_base = df_amostras if not df_amostras.empty else df
 
     if "table_ui_state" not in st.session_state:
         st.session_state.table_ui_state = {}
     if "table_filters_applied" not in st.session_state:
         st.session_state.table_filters_applied = False
-
-    st.markdown('<div id="tab_table_filters"></div>', unsafe_allow_html=True)
 
     with st.expander("🧩 Abrir filtros", expanded=True):
         with st.form("table_filters_form", clear_on_submit=False):
@@ -794,7 +712,8 @@ with tab_tabela:
                             else:
                                 prev = st.session_state.table_ui_state.get(colname, {}).get("value")
                                 default_rng = prev if (isinstance(prev, (tuple, list)) and len(prev) == 2) else (minv, maxv)
-                                rng = st.slider(colname, min_value=minv, max_value=maxv, value=(float(default_rng[0]), float(default_rng[1])))
+                                rng = st.slider(colname, min_value=minv, max_value=maxv,
+                                                value=(float(default_rng[0]), float(default_rng[1])))
                                 ui_state[colname] = {"type": "numeric", "value": rng}
                     else:
                         dt = pd.to_datetime(s, errors="coerce", dayfirst=True, format="mixed")
@@ -841,13 +760,9 @@ with tab_tabela:
             if clear_btn:
                 st.session_state.table_ui_state = {}
                 st.session_state.table_filters_applied = False
-                st.session_state.jump_anchor = "tab_table_filters"
-                st.rerun()
             elif apply_btn:
                 st.session_state.table_ui_state = ui_state
                 st.session_state.table_filters_applied = True
-                st.session_state.jump_anchor = "tab_table_filters"
-                st.rerun()
 
     if st.session_state.table_filters_applied and st.session_state.table_ui_state:
         filtered = apply_filters(df_base, st.session_state.table_ui_state)
@@ -866,8 +781,7 @@ with tab_tabela:
 
     show_cols = st.multiselect("Colunas visíveis", options=all_cols, default=default_show, key="table_show_cols")
 
-    st.markdown('<div id="tab_table_results"></div>', unsafe_allow_html=True)
-    st.dataframe(filtered[show_cols], width="stretch", height=520)
+    st.dataframe(filtered[show_cols], width="stretch", height=560)
 
     buffer = io.BytesIO()
     with pd.ExcelWriter(buffer, engine="openpyxl") as writer:
