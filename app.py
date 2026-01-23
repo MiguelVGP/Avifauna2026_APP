@@ -280,29 +280,28 @@ FIXED_LOCAIS = ["Ponte de Lima", "Ericeira", "Vila Franca de Xira", "Lisboa - Es
 # =========================
 # Sidebar: navegação por secções (isto elimina o problema do scroll)
 # =========================
+# =========================
+# Sidebar: navegação por secções
+# =========================
+OPTIONS = [
+    "📊 Outputs — KPIs & Top Tables",
+    "📍 Outputs — Espécies por local",
+    "📊 Outputs — Abundância média",
+    "📄 Outputs — PDF Lista de espécies",
+    "🟠 Outputs — Presença / Ausência",
+    "📋 Tabela — filtros + export",
+]
+
+# valor inicial (só 1x)
 if "section" not in st.session_state:
-    st.session_state.section = "📊 Outputs — KPIs & Top Tables"
+    st.session_state.section = OPTIONS[0]
 
 section = st.sidebar.radio(
     "Secção",
-    [
-        "📊 Outputs — KPIs & Top Tables",
-        "📍 Outputs — Espécies por local",
-        "📊 Outputs — Abundância média",
-        "📄 Outputs — PDF Lista de espécies",
-        "🟠 Outputs — Presença / Ausência",
-        "📋 Tabela — filtros + export",
-    ],
-    index=[
-        "📊 Outputs — KPIs & Top Tables",
-        "📍 Outputs — Espécies por local",
-        "📊 Outputs — Abundância média",
-        "📄 Outputs — PDF Lista de espécies",
-        "🟠 Outputs — Presença / Ausência",
-        "📋 Tabela — filtros + export",
-    ].index(st.session_state.section),
+    OPTIONS,
+    key="section",  # <- isto é o importante
 )
-st.session_state.section = section
+
 
 
 # =========================
