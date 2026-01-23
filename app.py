@@ -32,23 +32,31 @@ st.set_page_config(page_title="Kobo Data Hub", layout="wide")
 
 
 # =========================
-# Utils (scroll)
+# Utils (scroll) — SEM "scroll_to"
 # =========================
 def persist_scroll():
-    """Guarda/restaura o scroll Y no browser para evitar voltar ao topo após reruns."""
+    """Restaura o scroll sem animação (minimiza topo->volta)."""
     components.html(
         """
         <script>
         (function () {
           const key = "st_scroll_y";
 
-          const restore = () => {
-            const y = parseInt(window.parent.localStorage.getItem(key) || "0", 10);
-            if (!isNaN(y)) window.parent.scrollTo(0, y);
+          const save = () => {
+            try { window.parent.localStorage.setItem(key, String(window.parent.scrollY || 0)); } catch(e) {}
           };
 
-          const save = () => {
-            window.parent.localStorage.setItem(key, String(window.parent.scrollY || 0));
+          const restoreHard = () => {
+            let y = 0;
+            try { y = parseInt(window.parent.localStorage.getItem(key) || "0", 10) || 0; } catch(e) { y = 0; }
+
+            let n = 0;
+            const tick = () => {
+              window.parent.scrollTo(0, y);
+              n += 1;
+              if (n < 12) window.parent.requestAnimationFrame(tick);
+            };
+            tick();
           };
 
           if (!window.parent.__stScrollPersist) {
@@ -56,35 +64,8 @@ def persist_scroll():
             window.parent.addEventListener("scroll", save, { passive: true });
           }
 
-          setTimeout(restore, 50);
-          setTimeout(restore, 150);
-          setTimeout(restore, 350);
+          restoreHard();
         })();
-        </script>
-        """,
-        height=0,
-    )
-
-
-def scroll_to(anchor_id: str):
-    """Scroll para uma âncora específica (com retry) após 'Aplicar'."""
-    components.html(
-        f"""
-        <script>
-        (function() {{
-          const id = "{anchor_id}";
-          let tries = 0;
-          const jump = () => {{
-            const el = window.parent.document.getElementById(id);
-            if (el) {{
-              el.scrollIntoView({{behavior: "smooth", block: "start"}});
-            }} else if (tries < 15) {{
-              tries++;
-              setTimeout(jump, 80);
-            }}
-          }};
-          jump();
-        }})();
         </script>
         """,
         height=0,
@@ -263,6 +244,8 @@ def apply_filters(df: pd.DataFrame, ui_state: dict) -> pd.DataFrame:
 # Header + Controls
 # =========================
 st.title("Avifauna 2026 🐦 Kobo Data Hub")
+
+# Mantém a posição do scroll ao longo de reruns (sem animação)
 persist_scroll()
 
 b1, b2 = st.columns(2)
@@ -384,8 +367,6 @@ with tab_outputs:
     st.divider()
 
     # ---- Registos por local + top espécie por local
-    st.markdown('<div id="out_top_tables"></div>', unsafe_allow_html=True)
-
     c1, c2 = st.columns([1, 1])
 
     with c1:
@@ -423,7 +404,6 @@ with tab_outputs:
     st.divider()
 
     # ---- Espécies por local (FORM)
-    st.markdown('<div id="out_species_by_local"></div>', unsafe_allow_html=True)
     st.subheader("📍 Espécies por local")
 
     if "out_local_sel" not in st.session_state:
@@ -443,7 +423,7 @@ with tab_outputs:
     else:
         base = df_amostras[[LOCAL_COL, SPEC_COL, INDIV_COL]].copy()
         base[LOCAL_COL] = base[LOCAL_COL].fillna("").astype(str).str.strip()
-        base[SPEC_COL]  = base[SPEC_COL].fillna("").astype(str).str.strip()
+        base[SPEC_COL] = base[SPEC_COL].fillna("").astype(str).str.strip()
         base[INDIV_COL] = pd.to_numeric(base[INDIV_COL], errors="coerce").fillna(0)
 
         df_loc = base[base[LOCAL_COL] == local_sel]
@@ -463,7 +443,6 @@ with tab_outputs:
 
     st.dataframe(tabela, width="stretch", height=420)
 
-    # Download Excel (local selecionado)
     buffer = io.BytesIO()
     with pd.ExcelWriter(buffer, engine="openpyxl") as writer:
         tabela.to_excel(writer, index=False, sheet_name="Especies")
@@ -477,13 +456,9 @@ with tab_outputs:
         key=f"download_excel_local_{local_sel}",
     )
 
-    if submitted:
-        scroll_to("out_species_by_local")
-
     st.divider()
 
     # ---- Abundância média (FORM)
-    st.markdown('<div id="out_abund"></div>', unsafe_allow_html=True)
     st.subheader("📊 Abundância média por espécie (Nº indivíduos / 52 semanas)")
 
     if "out_abund_local" not in st.session_state:
@@ -513,7 +488,7 @@ with tab_outputs:
     else:
         base = df_amostras[[LOCAL_COL, SPEC_COL, INDIV_COL]].copy()
         base[LOCAL_COL] = base[LOCAL_COL].fillna("").astype(str).str.strip()
-        base[SPEC_COL]  = base[SPEC_COL].fillna("").astype(str).str.strip()
+        base[SPEC_COL] = base[SPEC_COL].fillna("").astype(str).str.strip()
         base[INDIV_COL] = pd.to_numeric(base[INDIV_COL], errors="coerce").fillna(0)
 
         if local_plot != "Total":
@@ -543,13 +518,9 @@ with tab_outputs:
             fig.update_layout(height=700, margin=dict(l=20, r=20, t=60, b=20))
             st.plotly_chart(fig, width="stretch")
 
-    if submitted_abund:
-        scroll_to("out_abund")
-
     st.divider()
 
     # ---- PDF Lista de espécies (FORM + toggle)
-    st.markdown('<div id="out_pdf"></div>', unsafe_allow_html=True)
     st.subheader("Lista de Espécies (PDF)")
 
     if "show_lista_especies" not in st.session_state:
@@ -557,7 +528,6 @@ with tab_outputs:
 
     if st.button("📄 Lista de Espécies"):
         st.session_state.show_lista_especies = not st.session_state.show_lista_especies
-        scroll_to("out_pdf")
 
     if st.session_state.show_lista_especies:
         st.subheader("📄 Gerar PDF — Lista de Espécies")
@@ -585,7 +555,7 @@ with tab_outputs:
         else:
             base = df_amostras[[LOCAL_COL, SPEC_COL, INDIV_COL]].copy()
             base[LOCAL_COL] = base[LOCAL_COL].fillna("").astype(str).str.strip()
-            base[SPEC_COL]  = base[SPEC_COL].fillna("").astype(str).str.strip()
+            base[SPEC_COL] = base[SPEC_COL].fillna("").astype(str).str.strip()
             base[INDIV_COL] = pd.to_numeric(base[INDIV_COL], errors="coerce").fillna(0)
 
             df_loc = base.copy() if local_sel_pdf == "Total" else base[base[LOCAL_COL] == local_sel_pdf]
@@ -612,13 +582,9 @@ with tab_outputs:
                     key=f"download_pdf_{local_sel_pdf}",
                 )
 
-        if submitted_pdf:
-            scroll_to("out_pdf")
-
     st.divider()
 
     # ---- Presença/Ausência (FORM)
-    st.markdown('<div id="out_pa"></div>', unsafe_allow_html=True)
     st.subheader("🟠 Presença / Ausência por mês e semana (circular)")
 
     locais_opts = ["Total"] + FIXED_LOCAIS
@@ -756,9 +722,6 @@ with tab_outputs:
                 st.plotly_chart(fig, width="stretch")
                 st.caption("Laranja = há registo nessa semana (dados/N_Semana) • Cinzento = sem registos")
 
-                if submitted_pa:
-                    scroll_to("out_pa")
-
 
 # =========================
 # TABLE TAB
@@ -772,8 +735,6 @@ with tab_tabela:
         st.session_state.table_ui_state = {}
     if "table_filters_applied" not in st.session_state:
         st.session_state.table_filters_applied = False
-
-    st.markdown('<div id="tab_table_filters"></div>', unsafe_allow_html=True)
 
     with st.expander("🧩 Abrir filtros", expanded=True):
         with st.form("table_filters_form", clear_on_submit=False):
@@ -872,9 +833,6 @@ with tab_tabela:
     else:
         filtered = df_base.copy()
 
-    if apply_btn or clear_btn:
-        scroll_to("tab_table_filters")
-
     all_cols = list(filtered.columns)
     prefer = [
         "_id", "dados/Data", "dados/Hora", "dados/N_Semana", "dados/Local",
@@ -887,7 +845,6 @@ with tab_tabela:
 
     show_cols = st.multiselect("Colunas visíveis", options=all_cols, default=default_show, key="table_show_cols")
 
-    st.markdown('<div id="tab_table_results"></div>', unsafe_allow_html=True)
     st.dataframe(filtered[show_cols], width="stretch", height=520)
 
     buffer = io.BytesIO()
