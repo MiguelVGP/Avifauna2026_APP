@@ -22,36 +22,9 @@ APP_PASSWORD = "teste"
 DEFAULT_LIMIT = 5000
 
 # =========================
-# UI / Branding (Orange theme tweaks)
+# UI (sem CSS)
 # =========================
 st.set_page_config(page_title="Kobo Data Hub", layout="wide")
-
-CUSTOM_CSS = """
-<style>
-/* Metric cards */
-div[data-testid="stMetric"] {
-  background: rgba(245,124,0,0.35);
-  border-radius: 14px;
-  padding: 10px 12px;
-  border: 1px solid rgba(245,124,0,0.35);
-}
-div[data-testid="stMetric"] * { color: white !important; }
-
-/* Inputs arredondados */
-div[data-baseweb="select"] > div,
-div[data-testid="stTextInput"] > div,
-div[data-testid="stNumberInput"] > div {
-  border-radius: 12px !important;
-}
-
-/* Dataframe container */
-div[data-testid="stDataFrame"] {
-  border-radius: 14px;
-  overflow: hidden;
-}
-</style>
-"""
-st.markdown(CUSTOM_CSS, unsafe_allow_html=True)
 
 # =========================
 # Login gate
@@ -206,7 +179,7 @@ def apply_filters(df: pd.DataFrame, ui_state: dict) -> pd.DataFrame:
 
         elif ftype == "date":
             start_date, end_date = val
-            s = pd.to_datetime(out[col], errors="coerce", utc=False)
+            s = pd.to_datetime(out[col], errors="coerce", dayfirst=True, format="mixed")
             mask = s.dt.date.between(start_date, end_date)
             out = out[mask]
 
@@ -256,43 +229,31 @@ df_amostras = normalize_complex_columns(df_amostras_raw) if not df_amostras_raw.
 tab_tabela, tab_outputs = st.tabs(["📋 Tabela", "📊 Outputs"])
 
 def build_species_list_pdf(local: str, species_df: pd.DataFrame) -> bytes:
-    """
-    species_df: colunas ["Espécie", "Nº indivíduos"] já agregadas e ordenadas.
-    Layout:
-      - topo esq: Local
-      - topo dir: data de hoje
-      - centro: Nº Total de Espécies
-      - lista: "Espécie (N)" linha a linha
-    """
     buffer = io.BytesIO()
     c = canvas.Canvas(buffer, pagesize=A4)
     width, height = A4
 
     today_str = date.today().strftime("%d-%m-%Y")
 
-    # margens
     left = 2.0 * cm
     right = width - 2.0 * cm
     y = height - 2.0 * cm
 
-    # Cabeçalho
     c.setFont("Helvetica-Bold", 14)
     c.drawString(left, y, str(local))
 
     c.setFont("Helvetica", 11)
     c.drawRightString(right, y + 2, today_str)
 
-    # Total espécies (centro)
     total_especies = int(len(species_df))
     y -= 2.0 * cm
     c.setFont("Helvetica-Bold", 16)
     c.drawCentredString(width / 2, y, f"Nº Total de Espécies: {total_especies}")
 
-    # Lista
     y -= 1.5 * cm
     c.setFont("Helvetica", 11)
 
-    line_h = 14  # pts
+    line_h = 14
     bottom = 2.0 * cm
 
     for _, row in species_df.iterrows():
@@ -305,7 +266,6 @@ def build_species_list_pdf(local: str, species_df: pd.DataFrame) -> bytes:
 
         text = f"{especie} ({n_int})"
 
-        # nova página se necessário
         if y <= bottom:
             c.showPage()
             y = height - 2.0 * cm
@@ -373,34 +333,24 @@ with tab_outputs:
             idx = counts.groupby(LOCAL_COL)["Nº indivíduos"].idxmax()
             top = counts.loc[idx].sort_values(LOCAL_COL)
 
-            top = top.rename(columns={
-                LOCAL_COL: "Local",
-                SPEC_COL: "Espécie mais observada"
-            })
-
+            top = top.rename(columns={LOCAL_COL: "Local", SPEC_COL: "Espécie mais observada"})
             st.dataframe(top, width="stretch", height=260)
 
     st.divider()
 
     st.subheader("📍 Espécies por local")
 
-    FIXED_LOCAIS = [
-        "Ponte de Lima",
-        "Ericeira",
-        "Vila Franca de Xira",
-        "Lisboa - Estefânia",
-    ]
+    FIXED_LOCAIS = ["Ponte de Lima", "Ericeira", "Vila Franca de Xira", "Lisboa - Estefânia"]
 
     if df_amostras.empty or any(c not in df_amostras.columns for c in [LOCAL_COL, SPEC_COL, INDIV_COL]):
         st.info("Faltam colunas necessárias para gerar a tabela por local.")
     else:
         base = df_amostras[[LOCAL_COL, SPEC_COL, INDIV_COL]].copy()
         base[LOCAL_COL] = base[LOCAL_COL].fillna("").astype(str).str.strip()
-        base[SPEC_COL]  = base[SPEC_COL].fillna("").astype(str).str.strip()
+        base[SPEC_COL] = base[SPEC_COL].fillna("").astype(str).str.strip()
         base[INDIV_COL] = pd.to_numeric(base[INDIV_COL], errors="coerce").fillna(0)
 
         local_sel = st.selectbox("Local", FIXED_LOCAIS, index=0)
-
         df_loc = base[base[LOCAL_COL] == local_sel]
 
         if df_loc.empty:
@@ -418,32 +368,24 @@ with tab_outputs:
 
         st.dataframe(tabela, width="stretch", height=420)
 
-    # ===== Download Excel (para o local selecionado) =====
-    buffer = io.BytesIO()
-    with pd.ExcelWriter(buffer, engine="openpyxl") as writer:
-        tabela.to_excel(writer, index=False, sheet_name="Especies")
-    buffer.seek(0)
+        buffer = io.BytesIO()
+        with pd.ExcelWriter(buffer, engine="openpyxl") as writer:
+            tabela.to_excel(writer, index=False, sheet_name="Especies")
+        buffer.seek(0)
 
-    st.download_button(
-        "⬇️ Download Excel",
-        data=buffer,
-        file_name=f"especies_{local_sel.replace(' ', '_')}.xlsx",
-        mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-        key=f"download_excel_local_{local_sel}",
-    )
+        st.download_button(
+            "⬇️ Download Excel",
+            data=buffer,
+            file_name=f"especies_{local_sel.replace(' ', '_')}.xlsx",
+            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            key=f"download_excel_local_{local_sel}",
+        )
 
     st.divider()
 
     st.subheader("📊 Abundância média por espécie (Nº indivíduos / 52 semanas)")
 
-    FIXED_LOCAIS = [
-        "Ponte de Lima",
-        "Ericeira",
-        "Vila Franca de Xira",
-        "Lisboa - Estefânia",
-    ]
     locais_plot = ["Total"] + FIXED_LOCAIS
-
     local_plot = st.selectbox("Local (Abundância média)", locais_plot, index=0, key="abund_local_sel")
 
     if df_amostras.empty or any(c not in df_amostras.columns for c in [LOCAL_COL, SPEC_COL, INDIV_COL]):
@@ -451,7 +393,7 @@ with tab_outputs:
     else:
         base = df_amostras[[LOCAL_COL, SPEC_COL, INDIV_COL]].copy()
         base[LOCAL_COL] = base[LOCAL_COL].fillna("").astype(str).str.strip()
-        base[SPEC_COL]  = base[SPEC_COL].fillna("").astype(str).str.strip()
+        base[SPEC_COL] = base[SPEC_COL].fillna("").astype(str).str.strip()
         base[INDIV_COL] = pd.to_numeric(base[INDIV_COL], errors="coerce").fillna(0)
 
         if local_plot != "Total":
@@ -460,7 +402,6 @@ with tab_outputs:
         if base.empty:
             st.warning("Sem registos para este local.")
         else:
-            # total indivíduos por espécie
             agg = (
                 base.groupby(SPEC_COL, dropna=False)[INDIV_COL]
                 .sum()
@@ -468,14 +409,11 @@ with tab_outputs:
                 .rename(columns={SPEC_COL: "Espécie", INDIV_COL: "Total indivíduos"})
             )
 
-            # Abundância média (por 52 semanas)
             agg["Abundância média (N/52)"] = agg["Total indivíduos"] / 52.0
 
-            # ordenar e limitar (opcional)
             top_n = st.slider("Top N espécies", min_value=3, max_value=18, value=10, step=3, key="abund_topn")
             agg = agg.sort_values("Abundância média (N/52)", ascending=True).tail(top_n)
 
-            # gráfico horizontal interativo
             fig = px.bar(
                 agg,
                 x="Abundância média (N/52)",
@@ -484,15 +422,12 @@ with tab_outputs:
                 hover_data={"Total indivíduos": True, "Abundância média (N/52)": ":.2f"},
                 title=f"Abundância média por espécie — {local_plot}",
             )
-            fig.update_layout(
-                height=700,
-                margin=dict(l=20, r=20, t=60, b=20),
-            )
-
+            fig.update_layout(height=700, margin=dict(l=20, r=20, t=60, b=20))
             st.plotly_chart(fig, width="stretch")
-            st.divider()
 
+    st.divider()
     st.subheader("Lista de Espécies (PDF)")
+
     if "show_lista_especies" not in st.session_state:
         st.session_state.show_lista_especies = False
 
@@ -502,13 +437,6 @@ with tab_outputs:
     if st.session_state.show_lista_especies:
         st.subheader("📄 Gerar PDF — Lista de Espécies")
 
-        FIXED_LOCAIS = [
-            "Ponte de Lima",
-            "Ericeira",
-            "Vila Franca de Xira",
-            "Lisboa - Estefânia",
-        ]
-
         locais_pdf = ["Total"] + FIXED_LOCAIS
         local_sel = st.selectbox("Local", locais_pdf, index=0, key="pdf_local_sel_total")
 
@@ -517,13 +445,10 @@ with tab_outputs:
         else:
             base = df_amostras[[LOCAL_COL, SPEC_COL, INDIV_COL]].copy()
             base[LOCAL_COL] = base[LOCAL_COL].fillna("").astype(str).str.strip()
-            base[SPEC_COL]  = base[SPEC_COL].fillna("").astype(str).str.strip()
+            base[SPEC_COL] = base[SPEC_COL].fillna("").astype(str).str.strip()
             base[INDIV_COL] = pd.to_numeric(base[INDIV_COL], errors="coerce").fillna(0)
 
-            if local_sel == "Total":
-                df_loc = base.copy()
-            else:
-                df_loc = base[base[LOCAL_COL] == local_sel]
+            df_loc = base.copy() if local_sel == "Total" else base[base[LOCAL_COL] == local_sel]
 
             if df_loc.empty:
                 st.warning("Sem registos para este local.")
@@ -550,23 +475,11 @@ with tab_outputs:
     st.divider()
     st.subheader("🟠 Presença / Ausência por mês e semana (circular)")
 
-    # colunas necessárias
-    WEEK_COL = "dados/N_Semana"
-    LOCAL_COL = "dados/Local"
-    SPEC_COL = "Amostragem/Espécie_final"
-
-    FIXED_LOCAIS = [
-        "Ponte de Lima",
-        "Ericeira",
-        "Vila Franca de Xira",
-        "Lisboa - Estefânia",
-    ]
     locais_opts = ["Total"] + FIXED_LOCAIS
 
     if df_amostras.empty or any(c not in df_amostras.columns for c in [WEEK_COL, LOCAL_COL, SPEC_COL]):
         st.info("Faltam colunas para gerar o gráfico (dados/N_Semana, dados/Local, Amostragem/Espécie_final).")
     else:
-        # base (normalizada)
         base = df_amostras[[WEEK_COL, LOCAL_COL, SPEC_COL]].copy()
         base[LOCAL_COL] = base[LOCAL_COL].fillna("").astype(str).str.strip()
         base[SPEC_COL] = base[SPEC_COL].fillna("").astype(str).str.strip()
@@ -578,35 +491,26 @@ with tab_outputs:
         if base.empty:
             st.warning("Não há valores válidos em dados/N_Semana (1..52).")
         else:
-            # escolhas
             colA, colB = st.columns(2)
             with colA:
                 local_sel = st.selectbox("Local", locais_opts, index=0, key="pa_local_sel")
 
-            # lista dinâmica de espécies (do próprio dataset)
             especies = sorted([s for s in base[SPEC_COL].dropna().astype(str).unique() if s.strip() != ""])
             with colB:
                 especie_sel = st.selectbox("Espécie", especies, index=0, key="pa_especie_sel")
 
-            # filtrar por local + espécie
             work = base[base[SPEC_COL] == especie_sel].copy()
             if local_sel != "Total":
                 work = work[work[LOCAL_COL] == local_sel]
 
-            # mapear N_Semana (1..52) -> mês (1..12) e semana_no_mes (1..4)
-            # 1-4 Jan, 5-8 Fev, ... 45-48 Nov, 49-52 Dez
             work["Mes"] = ((work[WEEK_COL] - 1) // 4 + 1).astype(int)
             work.loc[work["Mes"] > 12, "Mes"] = 12
             work["SemanaMes"] = ((work[WEEK_COL] - 1) % 4 + 1).astype(int)
 
-            # presença: set de (mês, semana_no_mes)
             presentes = set(zip(work["Mes"].tolist(), work["SemanaMes"].tolist()))
 
-            # construir 48 segmentos na ordem mês1-semana1..4, mês2-semana1..4, ...
             meses_nome = ["Jan", "Fev", "Mar", "Abr", "Mai", "Jun", "Jul", "Ago", "Set", "Out", "Nov", "Dez"]
-            labels = []
-            colors = []
-            thetas = []
+            labels, colors, thetas = [], [], []
 
             n_segments = 48
             step = 360 / n_segments
@@ -617,7 +521,7 @@ with tab_outputs:
             for m in range(1, 13):
                 for w in range(1, 5):
                     idx += 1
-                    thetas.append((idx - 1) * step + step/2)  # centra a fatia -> alinha com as divisões do mês
+                    thetas.append((idx - 1) * step + step / 2)
                     labels.append(f"{meses_nome[m-1]} — Semana {w}")
                     colors.append(orange if (m, w) in presentes else gray)
 
@@ -637,27 +541,22 @@ with tab_outputs:
                 ]
             )
 
-            # ===== NOVO: contorno preto por fora a agrupar cada mês (12 blocos de 4 semanas) =====
             month_centers = [((m - 1) * 4 * step) + (2 * step) for m in range(1, 13)]
             month_width = 4 * step
 
             fig.add_trace(
                 go.Barpolar(
-                    r=[1.00] * 12,  # ligeiramente fora do anel principal
+                    r=[1.00] * 12,
                     theta=month_centers,
                     width=[month_width] * 12,
                     marker=dict(
-                        color=["rgba(0,0,0,0)"] * 12,  # transparente (sem preenchimento)
+                        color=["rgba(0,0,0,0)"] * 12,
                         line=dict(color="black", width=3),
                     ),
                     hoverinfo="skip",
                     opacity=1,
                 )
             )
-
-            # ticks dos meses (1 label por mês, no centro do bloco de 4 semanas)
-            month_tickvals = month_centers
-            month_ticktext = meses_nome
 
             fig.update_layout(
                 title=f"Presença/Ausência — {especie_sel} ({local_sel})",
@@ -666,8 +565,8 @@ with tab_outputs:
                     angularaxis=dict(
                         visible=True,
                         tickmode="array",
-                        tickvals=month_tickvals,
-                        ticktext=month_ticktext,
+                        tickvals=month_centers,
+                        ticktext=meses_nome,
                         tickfont=dict(size=14, color="rgba(255,255,255,0.45)"),
                         rotation=0,
                         direction="clockwise",
@@ -681,7 +580,6 @@ with tab_outputs:
             )
 
             st.plotly_chart(fig, width="stretch")
-
             st.caption("Laranja = há registo nessa semana (dados/N_Semana) • Cinzento = sem registos")
 
 
@@ -694,17 +592,12 @@ with tab_tabela:
     df_base = df_amostras
 
     with st.expander("🧩 Abrir filtros", expanded=True):
-        cols_to_filter = [
-            "dados/N_Semana",
-            "dados/Data",
-            "dados/Local",
-            "Amostragem/Espécie_final",
-        ]
+        cols_to_filter = ["dados/N_Semana", "dados/Data", "dados/Local", "Amostragem/Espécie_final"]
         cols_to_filter = [c for c in cols_to_filter if c in df_base.columns]
 
         ui_state = {}
         ncols = 3
-        rows = [cols_to_filter[i:i+ncols] for i in range(0, len(cols_to_filter), ncols)]
+        rows = [cols_to_filter[i:i + ncols] for i in range(0, len(cols_to_filter), ncols)]
 
         for row in rows:
             cols = st.columns(ncols)
@@ -789,8 +682,3 @@ with tab_tabela:
         file_name="kobo_dados_filtrados.xlsx",
         mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
     )
-
-
-
-
-
