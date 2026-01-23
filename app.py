@@ -34,18 +34,57 @@ st.set_page_config(page_title="Kobo Data Hub", layout="wide")
 # =========================
 # Utils (scroll)
 # =========================
+def persist_scroll():
+    """Guarda/restaura o scroll Y no browser para evitar voltar ao topo após reruns."""
+    components.html(
+        """
+        <script>
+        (function () {
+          const key = "st_scroll_y";
+
+          const restore = () => {
+            const y = parseInt(window.parent.localStorage.getItem(key) || "0", 10);
+            if (!isNaN(y)) window.parent.scrollTo(0, y);
+          };
+
+          const save = () => {
+            window.parent.localStorage.setItem(key, String(window.parent.scrollY || 0));
+          };
+
+          if (!window.parent.__stScrollPersist) {
+            window.parent.__stScrollPersist = true;
+            window.parent.addEventListener("scroll", save, { passive: true });
+          }
+
+          setTimeout(restore, 50);
+          setTimeout(restore, 150);
+          setTimeout(restore, 350);
+        })();
+        </script>
+        """,
+        height=0,
+    )
+
+
 def scroll_to(anchor_id: str):
-    """Tenta manter a UX no Cloud: após 'Aplicar', faz scroll para a secção."""
+    """Scroll para uma âncora específica (com retry) após 'Aplicar'."""
     components.html(
         f"""
         <script>
-          const el = window.parent.document.getElementById("{anchor_id}");
-          if (el) {{
-            el.scrollIntoView({{behavior: "smooth", block: "start"}});
-          }} else {{
-            // fallback: tenta hash
-            window.parent.location.hash = "#{anchor_id}";
-          }}
+        (function() {{
+          const id = "{anchor_id}";
+          let tries = 0;
+          const jump = () => {{
+            const el = window.parent.document.getElementById(id);
+            if (el) {{
+              el.scrollIntoView({{behavior: "smooth", block: "start"}});
+            }} else if (tries < 15) {{
+              tries++;
+              setTimeout(jump, 80);
+            }}
+          }};
+          jump();
+        }})();
         </script>
         """,
         height=0,
@@ -224,6 +263,7 @@ def apply_filters(df: pd.DataFrame, ui_state: dict) -> pd.DataFrame:
 # Header + Controls
 # =========================
 st.title("Avifauna 2026 🐦 Kobo Data Hub")
+persist_scroll()
 
 b1, b2 = st.columns(2)
 
@@ -319,7 +359,6 @@ def build_species_list_pdf(local: str, species_df: pd.DataFrame) -> bytes:
 
 # =========================
 # OUTPUTS TAB
-# (agora com FORMS para reduzir reruns a cada clique)
 # =========================
 with tab_outputs:
     LOCAL_COL = "dados/Local"
@@ -605,9 +644,8 @@ with tab_outputs:
                 if "out_pa_local" not in st.session_state:
                     st.session_state.out_pa_local = "Total"
                 if "out_pa_especie" not in st.session_state:
-                    st.session_state.out_pa_especie = especies[0]  # default
+                    st.session_state.out_pa_especie = especies[0]
 
-                # garante que a espécie guardada ainda existe
                 if st.session_state.out_pa_especie not in especies:
                     st.session_state.out_pa_especie = especies[0]
 
@@ -724,7 +762,6 @@ with tab_outputs:
 
 # =========================
 # TABLE TAB
-# (agora com FORM para não rerunar a cada clique)
 # =========================
 with tab_tabela:
     st.subheader("📋 Tabela")
@@ -777,7 +814,6 @@ with tab_tabela:
                                 st.caption(f"Valor único: {minv}")
                                 ui_state[colname] = {"type": None, "value": None}
                             else:
-                                # tenta carregar o range anterior
                                 prev = st.session_state.table_ui_state.get(colname, {}).get("value")
                                 default_rng = prev if (isinstance(prev, (tuple, list)) and len(prev) == 2) else (minv, maxv)
                                 rng = st.slider(colname, min_value=minv, max_value=maxv, value=(float(default_rng[0]), float(default_rng[1])))
@@ -831,7 +867,6 @@ with tab_tabela:
                 st.session_state.table_ui_state = ui_state
                 st.session_state.table_filters_applied = True
 
-    # aplica filtros só quando já foram "aplicados"
     if st.session_state.table_filters_applied and st.session_state.table_ui_state:
         filtered = apply_filters(df_base, st.session_state.table_ui_state)
     else:
