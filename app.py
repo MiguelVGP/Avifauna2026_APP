@@ -270,7 +270,7 @@ WEEK_COL = "dados/N_Semana"
 SPEC_COL = "Amostragem/Espécie_final"
 INDIV_COL = "Amostragem/N_Indiv_duos"
 
-FIXED_LOCAIS = ["Ponte de Lima", "Ericeira", "Vila Franca de Xira", "Lisboa - Estefânia"]
+FIXED_LOCAIS = ["Ponte de Lima", "Ericeira", "Vila Franca de Xira", "Lisboa - Estefânia", "Loures - Flamenga"]
 
 
 # =========================
