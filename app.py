@@ -244,6 +244,103 @@ def build_species_list_pdf(local: str, species_df: pd.DataFrame) -> bytes:
     buffer.seek(0)
     return buffer.getvalue()
 
+def build_matrix_pdf(title: str, matrix_df: pd.DataFrame) -> bytes:
+    """
+    Gera PDF simples da matriz (index = espécies, colunas = locais) com paginação.
+    """
+    buffer = io.BytesIO()
+    c = canvas.Canvas(buffer, pagesize=A4)
+    width, height = A4
+
+    left = 1.5 * cm
+    right = width - 1.5 * cm
+    top = height - 1.5 * cm
+    bottom = 1.5 * cm
+
+    # Layout básico
+    header_h = 1.1 * cm
+    row_h = 0.55 * cm
+    font_body = 8
+    font_head = 9
+
+    # Larguras
+    first_col_w = 6.0 * cm  # "Espécie"
+    usable_w = (right - left) - first_col_w
+
+    # Convert df para lista de colunas/linhas
+    cols = list(matrix_df.columns)
+    rows = list(matrix_df.index)
+
+    # Estimar quantas colunas cabem por página (largura por coluna ~2.2cm)
+    col_w = 2.2 * cm
+    cols_per_page = max(1, int(usable_w // col_w))
+
+    # Estimar quantas linhas cabem por página
+    usable_h = (top - bottom) - header_h - 0.6 * cm
+    rows_per_page = max(1, int(usable_h // row_h))
+
+    # Função para desenhar cabeçalho
+    def draw_header(page_title: str, col_chunk: list):
+        y = top
+        c.setFont("Helvetica-Bold", 12)
+        c.drawString(left, y, page_title)
+
+        c.setFont("Helvetica", 9)
+        c.drawRightString(right, y, date.today().strftime("%d-%m-%Y"))
+
+        y -= header_h
+
+        # Cabeçalhos da tabela
+        c.setFont("Helvetica-Bold", font_head)
+        c.drawString(left, y, "Espécie")
+
+        x = left + first_col_w
+        for col in col_chunk:
+            # cabeçalho centrado na célula
+            cx = x + col_w / 2
+            c.drawCentredString(cx, y, str(col)[:18])
+            x += col_w
+
+        # linha separadora
+        y -= 0.25 * cm
+        c.line(left, y, right, y)
+        y -= 0.25 * cm
+        return y
+
+    # Paginação por chunks de colunas
+    for col_start in range(0, len(cols), cols_per_page):
+        col_chunk = cols[col_start: col_start + cols_per_page]
+
+        # Paginação por linhas
+        for row_start in range(0, len(rows), rows_per_page):
+            y = draw_header(title, col_chunk)
+
+            c.setFont("Helvetica", font_body)
+
+            row_chunk = rows[row_start: row_start + rows_per_page]
+            for r in row_chunk:
+                # Coluna espécie (esquerda)
+                especie_txt = str(r)
+                c.drawString(left, y, especie_txt[:60])
+
+                # Valores (centrados)
+                x = left + first_col_w
+                for col in col_chunk:
+                    val = matrix_df.loc[r, col]
+                    cx = x + col_w / 2
+                    c.drawCentredString(cx, y, str(val))
+                    x += col_w
+
+                y -= row_h
+
+                if y <= bottom + row_h:
+                    break
+
+            c.showPage()
+
+    c.save()
+    buffer.seek(0)
+    return buffer.getvalue()
 
 # =========================
 # Header + Controls
@@ -665,8 +762,8 @@ elif section == "✅ Presença / Ausência":
                 st.plotly_chart(fig, width="stretch")
                 #st.caption("Laranja = há registo nessa semana (dados/N_Semana) • Cinzento = sem registos")
 
-elif section == "🧩 Matriz Presença (Espécie x Local)":
-    st.subheader("🧩 Matriz Presença (Espécie × Local)")
+elif section == "🧩 Matriz Presença":
+    st.subheader("🧩 Matriz Presença")
 
     if df_amostras.empty or any(c not in df_amostras.columns for c in [LOCAL_COL, SPEC_COL]):
         st.info("Faltam colunas para construir a matriz (dados/Local, Amostragem/Espécie_final).")
@@ -788,10 +885,11 @@ elif section == "🧩 Matriz Presença (Espécie x Local)":
                         .sort_index(axis=1)
                 )
 
-                # converter True/False em check verde (✅)
-                matrix_display = matrix_bool.applymap(lambda v: "✅" if bool(v) else "")
+                # converter True/False em check verde (✖)
+                matrix_display = matrix_bool.applymap(lambda v: "✖" if bool(v) else "")
 
-                st.caption("✅ = espécie registada nesse local (com os filtros atuais).")
+
+                #st.caption("✅ = espécie registada nesse local (com os filtros atuais).")
                 st.dataframe(matrix_display, width="stretch", height=650)
 
 
@@ -809,8 +907,19 @@ elif section == "🧩 Matriz Presença (Espécie x Local)":
                     file_name="matriz_presenca_especie_local.xlsx",
                     mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
                 )
-
-
+                pdf_bytes = build_matrix_pdf(
+                    title="Matriz Presença — Espécie x Local",
+                    matrix_df=matrix_display
+                )
+                
+                st.download_button(
+                    "⬇️ Download PDF (matriz)",
+                    data=pdf_bytes,
+                    file_name=f"matriz_presenca_especie_local_{date.today().strftime('%Y%m%d')}.pdf",
+                    mime="application/pdf",
+                    key="download_pdf_matriz_presenca",
+                )
+                
 
 elif section == "📋 Tabela":
     st.subheader("📋 Tabela")
