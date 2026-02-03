@@ -283,6 +283,7 @@ OPTIONS = [
     "📊 Abundância média",
     "📄 PDF Lista de espécies",
     "✅ Presença / Ausência",
+    "🧩 Matriz Presença (Espécie x Local)",   # <-- NOVA
 ]
 
 #if "section" not in st.session_state:
@@ -662,7 +663,152 @@ elif section == "✅ Presença / Ausência":
                 )
 
                 st.plotly_chart(fig, width="stretch")
-                st.caption("Laranja = há registo nessa semana (dados/N_Semana) • Cinzento = sem registos")
+                #st.caption("Laranja = há registo nessa semana (dados/N_Semana) • Cinzento = sem registos")
+
+elif section == "🧩 Matriz Presença (Espécie x Local)":
+    st.subheader("🧩 Matriz Presença (Espécie × Local)")
+
+    if df_amostras.empty or any(c not in df_amostras.columns for c in [LOCAL_COL, SPEC_COL]):
+        st.info("Faltam colunas para construir a matriz (dados/Local, Amostragem/Espécie_final).")
+    else:
+        base = df_amostras.copy()
+
+        # Normalizações de segurança
+        base[LOCAL_COL] = base[LOCAL_COL].fillna("").astype(str).str.strip()
+        base[SPEC_COL] = base[SPEC_COL].fillna("").astype(str).str.strip()
+
+        # --------
+        # MÊS (preferir dados/Data; fallback via dados/N_Semana)
+        # --------
+        month_col = "__Mes"
+
+        if "dados/Data" in base.columns:
+            dt = pd.to_datetime(base["dados/Data"], errors="coerce", dayfirst=True, format="mixed")
+            base[month_col] = dt.dt.month
+        elif WEEK_COL in base.columns:
+            w = pd.to_numeric(base[WEEK_COL], errors="coerce")
+            # mesma lógica que já usas: 1..52 -> mês aproximado (4 semanas)
+            m = ((w - 1) // 4 + 1)
+            m = m.where(m <= 12, 12)
+            base[month_col] = m
+        else:
+            base[month_col] = pd.NA
+
+        # manter só registos válidos (local + espécie)
+        base = base[(base[LOCAL_COL] != "") & (base[SPEC_COL] != "")].copy()
+
+        if base.empty:
+            st.warning("Sem registos válidos (local e/ou espécie vazios).")
+        else:
+            # Listas para filtros (com "Todos")
+            locais_all = sorted([x for x in base[LOCAL_COL].unique() if x.strip() != ""])
+            especies_all = sorted([x for x in base[SPEC_COL].unique() if x.strip() != ""])
+
+            meses_nome = ["Jan", "Fev", "Mar", "Abr", "Mai", "Jun", "Jul", "Ago", "Set", "Out", "Nov", "Dez"]
+            meses_all = [m for m in sorted(base[month_col].dropna().unique()) if 1 <= int(m) <= 12]
+            meses_labels = [meses_nome[int(m) - 1] for m in meses_all]
+
+            # estado no session_state
+            if "mx_locais" not in st.session_state:
+                st.session_state.mx_locais = ["Todos"]
+            if "mx_especies" not in st.session_state:
+                st.session_state.mx_especies = ["Todos"]
+            if "mx_meses" not in st.session_state:
+                st.session_state.mx_meses = ["Todos"]
+
+            with st.form("form_matriz_presenca", clear_on_submit=False):
+                c1, c2, c3 = st.columns(3)
+
+                with c1:
+                    locais_opts = ["Todos"] + locais_all
+                    sel_locais = st.multiselect(
+                        "Locais",
+                        options=locais_opts,
+                        default=st.session_state.mx_locais if isinstance(st.session_state.mx_locais, list) else ["Todos"],
+                    )
+
+                with c2:
+                    especies_opts = ["Todos"] + especies_all
+                    sel_especies = st.multiselect(
+                        "Espécies",
+                        options=especies_opts,
+                        default=st.session_state.mx_especies if isinstance(st.session_state.mx_especies, list) else ["Todos"],
+                    )
+
+                with c3:
+                    meses_opts = ["Todos"] + meses_labels  # mostramos nomes
+                    sel_meses = st.multiselect(
+                        "Meses",
+                        options=meses_opts,
+                        default=st.session_state.mx_meses if isinstance(st.session_state.mx_meses, list) else ["Todos"],
+                    )
+
+                apply_mx = st.form_submit_button("Aplicar filtros")
+                if apply_mx:
+                    st.session_state.mx_locais = sel_locais if sel_locais else ["Todos"]
+                    st.session_state.mx_especies = sel_especies if sel_especies else ["Todos"]
+                    st.session_state.mx_meses = sel_meses if sel_meses else ["Todos"]
+
+            # aplicar filtros
+            work = base.copy()
+
+            # Locais
+            sel_locais = st.session_state.mx_locais
+            if sel_locais and "Todos" not in sel_locais:
+                work = work[work[LOCAL_COL].isin(sel_locais)]
+
+            # Espécies
+            sel_especies = st.session_state.mx_especies
+            if sel_especies and "Todos" not in sel_especies:
+                work = work[work[SPEC_COL].isin(sel_especies)]
+
+            # Meses (convertendo labels -> número)
+            sel_meses = st.session_state.mx_meses
+            if sel_meses and "Todos" not in sel_meses:
+                label_to_num = {meses_nome[i]: i + 1 for i in range(12)}
+                meses_num = [label_to_num[m] for m in sel_meses if m in label_to_num]
+                work = work[work[month_col].isin(meses_num)]
+
+            if work.empty:
+                st.warning("Sem registos após aplicar filtros.")
+            else:
+                # --------
+                # MATRIZ PRESENÇA (Espécie x Local)
+                # --------
+                pres = (
+                    work.groupby([SPEC_COL, LOCAL_COL])
+                    .size()
+                    .reset_index(name="n")
+                )
+
+                matrix_bool = (
+                    pres.assign(presente=True)
+                        .pivot_table(index=SPEC_COL, columns=LOCAL_COL, values="presente", aggfunc="max", fill_value=False)
+                        .sort_index(axis=0)
+                        .sort_index(axis=1)
+                )
+
+                # converter True/False em check verde (✅)
+                matrix_display = matrix_bool.applymap(lambda v: "✅" if bool(v) else "")
+
+                st.caption("✅ = espécie registada nesse local (com os filtros atuais).")
+                st.dataframe(matrix_display, width="stretch", height=650)
+
+                # Export Excel da matriz
+                buffer = io.BytesIO()
+                with pd.ExcelWriter(buffer, engine="openpyxl") as writer:
+                    matrix_display.reset_index().rename(columns={SPEC_COL: "Espécie"}).to_excel(
+                        writer, index=False, sheet_name="Matriz_Presenca"
+                    )
+                buffer.seek(0)
+
+                st.download_button(
+                    "⬇️ Exportar Excel (matriz)",
+                    data=buffer,
+                    file_name="matriz_presenca_especie_local.xlsx",
+                    mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                )
+
 
 
 elif section == "📋 Tabela":
