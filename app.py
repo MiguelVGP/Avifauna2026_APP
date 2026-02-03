@@ -792,7 +792,6 @@ elif section == "🧩 Matriz Presença (Espécie x Local)":
                 matrix_display = matrix_bool.applymap(lambda v: "✅" if bool(v) else "")
 
                 st.caption("✅ = espécie registada nesse local (com os filtros atuais).")
-                styled = matrix_display.style.set_properties(**{"text-align": "center"})
                 st.dataframe(styled, width="stretch", height=650)
 
 
