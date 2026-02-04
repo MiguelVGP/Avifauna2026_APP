@@ -861,11 +861,22 @@ elif section == "🧩 Matriz Presença":
                 # ✖ cruz preta
                 matrix_display = matrix_bool.applymap(lambda v: "✖" if bool(v) else "")
 
-                # centrar células
-                styled = matrix_display.style.set_properties(**{"text-align": "center"})
-
-                #st.caption("✖ = espécie registada nesse local (com os filtros atuais).")
+                                # em vez de usar o index, traz a espécie para uma coluna normal
+                matrix_display_show = (
+                    matrix_display
+                    .reset_index()
+                    .rename(columns={SPEC_COL: "Espécie"})
+                )
+                
+                # centrar tudo: células + cabeçalhos
+                styled = (
+                    matrix_display_show.style
+                    .set_properties(**{"text-align": "center"})  # td
+                    .set_table_styles([{"selector": "th", "props": [("text-align", "center")]}])  # th
+                )
+                
                 st.dataframe(styled, width="stretch", height=650)
+
 
                 # Export Excel
                 buffer = io.BytesIO()
