@@ -860,13 +860,6 @@ elif section == "🧩 Matriz Presença":
 
                 # ✖ cruz preta
                 matrix_display = matrix_bool.applymap(lambda v: "✖" if bool(v) else "")
-
-                                # em vez de usar o index, traz a espécie para uma coluna normal
-                matrix_display_show = (
-                    matrix_display
-                    .reset_index()
-                    .rename(columns={SPEC_COL: "Espécie"})
-                )
                 
                 # centrar tudo: células + cabeçalhos
                 styled = (
