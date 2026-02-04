@@ -17,16 +17,18 @@ import plotly.graph_objects as go
 
 # =========================
 # FIXOS (Kobo + Password)
-KOBO_BASE_URL = "https://kf.kobotoolbox.org" 
-ASSET_UID = "ajHjKHzV37ik8jJwLBwBrj" 
-API_TOKEN = "8cd83af6fdc8e74c1dfa40430e7a88b5acc04b01" 
-APP_PASSWORD = "BiotaAvifauna" 
+# =========================
+KOBO_BASE_URL = "https://kf.kobotoolbox.org"
+ASSET_UID = "ajHjKHzV37ik8jJwLBwBrj"
+API_TOKEN = "8cd83af6fdc8e74c1dfa40430e7a88b5acc04b01"
+APP_PASSWORD = "BiotaAvifauna"
 DEFAULT_LIMIT = 5000
 
 # =========================
 # UI (sem CSS)
 # =========================
 st.set_page_config(page_title="Kobo Data Hub", layout="wide")
+
 
 # =========================
 # Login gate
@@ -42,14 +44,13 @@ if not st.session_state.authenticated:
     colL, colR = st.columns([1, 3])
     with colL:
         if st.button("Entrar"):
-            if not APP_PASSWORD:
-                st.error("APP_PASSWORD não está definido (variável de ambiente).")
-            elif pwd == APP_PASSWORD:
+            if pwd == APP_PASSWORD:
                 st.session_state.authenticated = True
                 st.rerun()
             else:
                 st.error("Palavra-passe incorreta.")
     st.stop()
+
 
 # =========================
 # Helpers
@@ -140,9 +141,6 @@ def explode_amostragem(df_raw: pd.DataFrame, amostragem_col="Amostragem") -> pd.
 
 @st.cache_data(ttl=300, show_spinner=False)
 def fetch_kobo_raw(limit: int = 5000) -> pd.DataFrame:
-    if not API_TOKEN:
-        raise ValueError("KOBO_API_TOKEN não está definido (variável de ambiente).")
-
     url = f"{KOBO_BASE_URL.rstrip('/')}/api/v2/assets/{ASSET_UID}/data/"
     params = {"format": "json", "limit": limit}
 
@@ -246,10 +244,9 @@ def build_species_list_pdf(local: str, species_df: pd.DataFrame) -> bytes:
     buffer.seek(0)
     return buffer.getvalue()
 
-
 def build_matrix_pdf(title: str, matrix_df: pd.DataFrame) -> bytes:
     """
-    PDF simples e paginado da matriz (index = espécies, colunas = locais).
+    Gera PDF simples da matriz (index = espécies, colunas = locais) com paginação.
     """
     buffer = io.BytesIO()
     c = canvas.Canvas(buffer, pagesize=A4)
@@ -260,23 +257,29 @@ def build_matrix_pdf(title: str, matrix_df: pd.DataFrame) -> bytes:
     top = height - 1.5 * cm
     bottom = 1.5 * cm
 
+    # Layout básico
     header_h = 1.1 * cm
     row_h = 0.55 * cm
     font_body = 8
     font_head = 9
 
-    first_col_w = 6.0 * cm  # espécie
+    # Larguras
+    first_col_w = 6.0 * cm  # "Espécie"
     usable_w = (right - left) - first_col_w
 
+    # Convert df para lista de colunas/linhas
     cols = list(matrix_df.columns)
     rows = list(matrix_df.index)
 
+    # Estimar quantas colunas cabem por página (largura por coluna ~2.2cm)
     col_w = 2.2 * cm
     cols_per_page = max(1, int(usable_w // col_w))
 
+    # Estimar quantas linhas cabem por página
     usable_h = (top - bottom) - header_h - 0.6 * cm
     rows_per_page = max(1, int(usable_h // row_h))
 
+    # Função para desenhar cabeçalho
     def draw_header(page_title: str, col_chunk: list):
         y = top
         c.setFont("Helvetica-Bold", 12)
@@ -286,31 +289,41 @@ def build_matrix_pdf(title: str, matrix_df: pd.DataFrame) -> bytes:
         c.drawRightString(right, y, date.today().strftime("%d-%m-%Y"))
 
         y -= header_h
+
+        # Cabeçalhos da tabela
         c.setFont("Helvetica-Bold", font_head)
         c.drawString(left, y, "Espécie")
 
         x = left + first_col_w
         for col in col_chunk:
+            # cabeçalho centrado na célula
             cx = x + col_w / 2
             c.drawCentredString(cx, y, str(col)[:18])
             x += col_w
 
+        # linha separadora
         y -= 0.25 * cm
         c.line(left, y, right, y)
         y -= 0.25 * cm
         return y
 
+    # Paginação por chunks de colunas
     for col_start in range(0, len(cols), cols_per_page):
         col_chunk = cols[col_start: col_start + cols_per_page]
 
+        # Paginação por linhas
         for row_start in range(0, len(rows), rows_per_page):
             y = draw_header(title, col_chunk)
+
             c.setFont("Helvetica", font_body)
 
             row_chunk = rows[row_start: row_start + rows_per_page]
             for r in row_chunk:
-                c.drawString(left, y, str(r)[:60])
+                # Coluna espécie (esquerda)
+                especie_txt = str(r)
+                c.drawString(left, y, especie_txt[:60])
 
+                # Valores (centrados)
                 x = left + first_col_w
                 for col in col_chunk:
                     val = matrix_df.loc[r, col]
@@ -319,6 +332,7 @@ def build_matrix_pdf(title: str, matrix_df: pd.DataFrame) -> bytes:
                     x += col_w
 
                 y -= row_h
+
                 if y <= bottom + row_h:
                     break
 
@@ -327,7 +341,6 @@ def build_matrix_pdf(title: str, matrix_df: pd.DataFrame) -> bytes:
     c.save()
     buffer.seek(0)
     return buffer.getvalue()
-
 
 # =========================
 # Header + Controls
@@ -343,11 +356,7 @@ if st.button("Sair"):
 # Load Data
 # =========================
 with st.spinner("A carregar dados do Kobo..."):
-    try:
-        df_raw = fetch_kobo_raw(limit=DEFAULT_LIMIT)
-    except Exception as e:
-        st.error(f"Erro ao carregar dados: {e}")
-        st.stop()
+    df_raw = fetch_kobo_raw(limit=DEFAULT_LIMIT)
 
 df = normalize_complex_columns(df_raw)
 df_amostras_raw = explode_amostragem(df_raw, amostragem_col="Amostragem")
@@ -371,9 +380,13 @@ OPTIONS = [
     "📊 Abundância média",
     "📄 PDF Lista de espécies",
     "✅ Presença / Ausência",
-    "🧩 Matriz Presença",  # NOVA
+    "🧩 Matriz Presença (Espécie x Local)",   # <-- NOVA
 ]
 
+#if "section" not in st.session_state:
+    #st.session_state.section = OPTIONS[0]
+
+# valor inicial (só 1x) + proteção se houver valor antigo guardado
 if "section" not in st.session_state or st.session_state.section not in OPTIONS:
     st.session_state.section = OPTIONS[0]
 
@@ -385,7 +398,7 @@ section = st.sidebar.radio(
 
 
 # =========================
-# RENDER
+# RENDER: cada secção começa no TOPO
 # =========================
 if section == "🐦‍⬛ Visão geral":
     st.subheader("🐦‍⬛ Visão geral")
@@ -682,7 +695,7 @@ elif section == "✅ Presença / Ausência":
 
                 n_segments = 48
                 step = 360 / n_segments
-                green = "#00F715"
+                orange = "#00F715"
                 gray = "#E0E0E0"
 
                 idx = 0
@@ -691,7 +704,7 @@ elif section == "✅ Presença / Ausência":
                         idx += 1
                         thetas.append((idx - 1) * step + step / 2)
                         labels.append(f"{meses_nome[m-1]} — Semana {w}")
-                        colors.append(green if (m, w) in presentes else gray)
+                        colors.append(orange if (m, w) in presentes else gray)
 
                 fig = go.Figure(
                     data=[
@@ -747,8 +760,7 @@ elif section == "✅ Presença / Ausência":
                 )
 
                 st.plotly_chart(fig, width="stretch")
-                st.caption("Verde = há registo nessa semana (dados/N_Semana) • Cinzento = sem registos")
-
+                #st.caption("Laranja = há registo nessa semana (dados/N_Semana) • Cinzento = sem registos")
 
 elif section == "🧩 Matriz Presença":
     st.subheader("🧩 Matriz Presença")
@@ -758,26 +770,34 @@ elif section == "🧩 Matriz Presença":
     else:
         base = df_amostras.copy()
 
+        # Normalizações de segurança
         base[LOCAL_COL] = base[LOCAL_COL].fillna("").astype(str).str.strip()
         base[SPEC_COL] = base[SPEC_COL].fillna("").astype(str).str.strip()
 
+        # --------
+        # MÊS (preferir dados/Data; fallback via dados/N_Semana)
+        # --------
         month_col = "__Mes"
+
         if "dados/Data" in base.columns:
             dt = pd.to_datetime(base["dados/Data"], errors="coerce", dayfirst=True, format="mixed")
             base[month_col] = dt.dt.month
         elif WEEK_COL in base.columns:
             w = pd.to_numeric(base[WEEK_COL], errors="coerce")
+            # mesma lógica que já usas: 1..52 -> mês aproximado (4 semanas)
             m = ((w - 1) // 4 + 1)
             m = m.where(m <= 12, 12)
             base[month_col] = m
         else:
             base[month_col] = pd.NA
 
+        # manter só registos válidos (local + espécie)
         base = base[(base[LOCAL_COL] != "") & (base[SPEC_COL] != "")].copy()
 
         if base.empty:
             st.warning("Sem registos válidos (local e/ou espécie vazios).")
         else:
+            # Listas para filtros (com "Todos")
             locais_all = sorted([x for x in base[LOCAL_COL].unique() if x.strip() != ""])
             especies_all = sorted([x for x in base[SPEC_COL].unique() if x.strip() != ""])
 
@@ -785,6 +805,7 @@ elif section == "🧩 Matriz Presença":
             meses_all = [m for m in sorted(base[month_col].dropna().unique()) if 1 <= int(m) <= 12]
             meses_labels = [meses_nome[int(m) - 1] for m in meses_all]
 
+            # estado no session_state
             if "mx_locais" not in st.session_state:
                 st.session_state.mx_locais = ["Todos"]
             if "mx_especies" not in st.session_state:
@@ -812,7 +833,7 @@ elif section == "🧩 Matriz Presença":
                     )
 
                 with c3:
-                    meses_opts = ["Todos"] + meses_labels
+                    meses_opts = ["Todos"] + meses_labels  # mostramos nomes
                     sel_meses = st.multiselect(
                         "Meses",
                         options=meses_opts,
@@ -825,16 +846,20 @@ elif section == "🧩 Matriz Presença":
                     st.session_state.mx_especies = sel_especies if sel_especies else ["Todos"]
                     st.session_state.mx_meses = sel_meses if sel_meses else ["Todos"]
 
+            # aplicar filtros
             work = base.copy()
 
+            # Locais
             sel_locais = st.session_state.mx_locais
             if sel_locais and "Todos" not in sel_locais:
                 work = work[work[LOCAL_COL].isin(sel_locais)]
 
+            # Espécies
             sel_especies = st.session_state.mx_especies
             if sel_especies and "Todos" not in sel_especies:
                 work = work[work[SPEC_COL].isin(sel_especies)]
 
+            # Meses (convertendo labels -> número)
             sel_meses = st.session_state.mx_meses
             if sel_meses and "Todos" not in sel_meses:
                 label_to_num = {meses_nome[i]: i + 1 for i in range(12)}
@@ -844,6 +869,9 @@ elif section == "🧩 Matriz Presença":
             if work.empty:
                 st.warning("Sem registos após aplicar filtros.")
             else:
+                # --------
+                # MATRIZ PRESENÇA (Espécie x Local)
+                # --------
                 pres = (
                     work.groupby([SPEC_COL, LOCAL_COL])
                     .size()
@@ -857,23 +885,15 @@ elif section == "🧩 Matriz Presença":
                         .sort_index(axis=1)
                 )
 
-                # em vez de usar o index, traz a espécie para uma coluna normal
-                matrix_display_show = (
-                    matrix_display
-                    .reset_index()
-                    .rename(columns={SPEC_COL: "Espécie"})
-                )
-                
-                # centrar tudo: células + cabeçalhos
-                styled = (
-                    matrix_display_show.style
-                    .set_properties(**{"text-align": "center"})  # td
-                    .set_table_styles([{"selector": "th", "props": [("text-align", "center")]}])  # th
-                )
-                
-                st.dataframe(styled, width="stretch", height=650)
+                # converter True/False em check verde (✖)
+                matrix_display = matrix_bool.applymap(lambda v: "✖" if bool(v) else "")
 
-                # Export Excel
+
+                #st.caption("✅ = espécie registada nesse local (com os filtros atuais).")
+                st.dataframe(matrix_display, width="stretch", height=650)
+
+
+                # Export Excel da matriz
                 buffer = io.BytesIO()
                 with pd.ExcelWriter(buffer, engine="openpyxl") as writer:
                     matrix_display.reset_index().rename(columns={SPEC_COL: "Espécie"}).to_excel(
@@ -882,26 +902,24 @@ elif section == "🧩 Matriz Presença":
                 buffer.seek(0)
 
                 st.download_button(
-                    "⬇️ Exportar Excel",
+                    "⬇️ Exportar Excel (matriz)",
                     data=buffer,
                     file_name="matriz_presenca_especie_local.xlsx",
                     mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
                 )
-
-                # Export PDF
                 pdf_bytes = build_matrix_pdf(
                     title="Matriz Presença — Espécie x Local",
-                    matrix_df=matrix_display,
+                    matrix_df=matrix_display
                 )
-
+                
                 st.download_button(
-                    "⬇️ Download PDF",
+                    "⬇️ Download PDF (matriz)",
                     data=pdf_bytes,
                     file_name=f"matriz_presenca_especie_local_{date.today().strftime('%Y%m%d')}.pdf",
                     mime="application/pdf",
                     key="download_pdf_matriz_presenca",
                 )
-
+                
 
 elif section == "📋 Tabela":
     st.subheader("📋 Tabela")
