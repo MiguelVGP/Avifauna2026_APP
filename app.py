@@ -380,7 +380,7 @@ OPTIONS = [
     "📊 Abundância média",
     "📄 PDF Lista de espécies",
     "✅ Presença / Ausência",
-    "🧩 Matriz Presença (Espécie x Local)",   # <-- NOVA
+    "🧩 Matriz Presença",   # <-- NOVA
 ]
 
 #if "section" not in st.session_state:
