@@ -247,7 +247,8 @@ def build_species_list_pdf(local: str, species_df: pd.DataFrame) -> bytes:
 def build_matrix_pdf(title: str, matrix_df: pd.DataFrame) -> bytes:
     """
     Gera PDF simples da matriz (index = espécies, colunas = locais) com paginação,
-    com linhas a separar colunas (locais) e mais espaço entre colunas.
+    com linhas verticais a separar colunas (locais) e linhas horizontais,
+    sem prolongar linhas para além do último local.
     """
     buffer = io.BytesIO()
     c = canvas.Canvas(buffer, pagesize=A4)
@@ -258,23 +259,19 @@ def build_matrix_pdf(title: str, matrix_df: pd.DataFrame) -> bytes:
     top = height - 1.3 * cm
     bottom = 1.3 * cm
 
-    # Layout
     header_h = 1.2 * cm
     row_h = 0.60 * cm
     font_body = 8
     font_head = 9
 
-    # Larguras
-    first_col_w = 7.0 * cm  # mais espaço para nomes das espécies
+    first_col_w = 7.0 * cm
     usable_w = (right - left) - first_col_w
 
-    # Listas
     cols = list(matrix_df.columns)
     rows = list(matrix_df.index)
 
-    # MAIS ESPAÇO ENTRE LOCAIS (aumenta aqui)
-    col_w = 2.8 * cm  # antes ~2.2cm; aumenta para dar "respiro"
-    col_gap = 0.25 * cm  # espaço extra entre colunas
+    col_w = 2.8 * cm
+    col_gap = 0.25 * cm
     effective_col_w = col_w + col_gap
 
     cols_per_page = max(1, int(usable_w // effective_col_w))
@@ -292,7 +289,6 @@ def build_matrix_pdf(title: str, matrix_df: pd.DataFrame) -> bytes:
 
         y -= header_h
 
-        # Cabeçalhos
         c.setFont("Helvetica-Bold", font_head)
         c.drawString(left, y, "Espécie")
 
@@ -303,42 +299,42 @@ def build_matrix_pdf(title: str, matrix_df: pd.DataFrame) -> bytes:
             c.drawCentredString(cx, y, str(col)[:22])
             x += effective_col_w
 
-        # Linha separadora (topo da tabela)
+        # Fim da grelha (última coluna de locais) — aqui está o ponto-chave
+        grid_right = x0 + (len(col_chunk) * effective_col_w) - (col_gap / 2)
+
+        # Linha separadora do header: só até ao fim da grelha
         y -= 0.25 * cm
         c.setLineWidth(0.6)
-        c.line(left, y, right, y)
+        c.line(left, y, grid_right, y)
         y -= 0.25 * cm
 
-        return y, x0
+        return y, x0, grid_right
 
-    # Paginação por colunas
     for col_start in range(0, len(cols), cols_per_page):
         col_chunk = cols[col_start: col_start + cols_per_page]
 
-        # Paginação por linhas
         for row_start in range(0, len(rows), rows_per_page):
-            y, x0 = draw_header(title, col_chunk)
+            y, x0, grid_right = draw_header(title, col_chunk)
 
-            # limites da grelha nesta página
-            table_top_y = y + 0.25 * cm   # logo abaixo da linha do header
+            table_top_y = y + 0.25 * cm
             row_chunk = rows[row_start: row_start + rows_per_page]
             table_bottom_y = table_top_y - (len(row_chunk) * row_h)
 
             # Linhas verticais a separar LOCAIS (colunas)
             c.setLineWidth(0.3)
             x = x0
+
             # linha antes da 1ª coluna de locais
             c.line(x - (col_gap / 2), table_top_y, x - (col_gap / 2), table_bottom_y)
 
             for _ in col_chunk:
-                # linha no fim de cada coluna
                 x_end = x + col_w + (col_gap / 2)
                 c.line(x_end, table_top_y, x_end, table_bottom_y)
                 x += effective_col_w
 
             # Conteúdo
             c.setFont("Helvetica", font_body)
-            y_row = table_top_y - row_h * 0.75  # ajustezinho para centrar visualmente
+            y_row = table_top_y - row_h * 0.75
 
             for r in row_chunk:
                 c.drawString(left, y_row, str(r)[:70])
@@ -350,10 +346,10 @@ def build_matrix_pdf(title: str, matrix_df: pd.DataFrame) -> bytes:
                     c.drawCentredString(cx, y_row, str(val))
                     x += effective_col_w
 
-                # (Opcional) linha horizontal por linha (se quiseres “grelha” completa)
+                # Linhas horizontais: só até ao fim da grelha (não até à margem da página)
                 c.setLineWidth(0.2)
                 y_line = y_row - (row_h * 0.35)
-                c.line(left, y_line, right, y_line)
+                c.line(left, y_line, grid_right, y_line)
 
                 y_row -= row_h
                 if y_row <= bottom + row_h:
@@ -364,6 +360,7 @@ def build_matrix_pdf(title: str, matrix_df: pd.DataFrame) -> bytes:
     c.save()
     buffer.seek(0)
     return buffer.getvalue()
+
 
 
 # =========================
