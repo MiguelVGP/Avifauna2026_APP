@@ -51,7 +51,6 @@ if not st.session_state.authenticated:
                 st.error("Palavra-passe incorreta.")
     st.stop()
 
-
 # =========================
 # Helpers
 # =========================
@@ -858,8 +857,12 @@ elif section == "🧩 Matriz Presença":
                         .sort_index(axis=1)
                 )
 
-                # ✖ cruz preta
-                matrix_display = matrix_bool.applymap(lambda v: "✖" if bool(v) else "")
+                # em vez de usar o index, traz a espécie para uma coluna normal
+                matrix_display_show = (
+                    matrix_display
+                    .reset_index()
+                    .rename(columns={SPEC_COL: "Espécie"})
+                )
                 
                 # centrar tudo: células + cabeçalhos
                 styled = (
@@ -869,7 +872,6 @@ elif section == "🧩 Matriz Presença":
                 )
                 
                 st.dataframe(styled, width="stretch", height=650)
-
 
                 # Export Excel
                 buffer = io.BytesIO()
