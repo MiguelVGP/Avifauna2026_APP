@@ -246,40 +246,42 @@ def build_species_list_pdf(local: str, species_df: pd.DataFrame) -> bytes:
 
 def build_matrix_pdf(title: str, matrix_df: pd.DataFrame) -> bytes:
     """
-    Gera PDF simples da matriz (index = espécies, colunas = locais) com paginação.
+    Gera PDF simples da matriz (index = espécies, colunas = locais) com paginação,
+    com linhas a separar colunas (locais) e mais espaço entre colunas.
     """
     buffer = io.BytesIO()
     c = canvas.Canvas(buffer, pagesize=A4)
     width, height = A4
 
-    left = 1.5 * cm
-    right = width - 1.5 * cm
-    top = height - 1.5 * cm
-    bottom = 1.5 * cm
+    left = 1.3 * cm
+    right = width - 1.3 * cm
+    top = height - 1.3 * cm
+    bottom = 1.3 * cm
 
-    # Layout básico
-    header_h = 1.1 * cm
-    row_h = 0.55 * cm
+    # Layout
+    header_h = 1.2 * cm
+    row_h = 0.60 * cm
     font_body = 8
     font_head = 9
 
     # Larguras
-    first_col_w = 6.0 * cm  # "Espécie"
+    first_col_w = 7.0 * cm  # mais espaço para nomes das espécies
     usable_w = (right - left) - first_col_w
 
-    # Convert df para lista de colunas/linhas
+    # Listas
     cols = list(matrix_df.columns)
     rows = list(matrix_df.index)
 
-    # Estimar quantas colunas cabem por página (largura por coluna ~2.2cm)
-    col_w = 2.2 * cm
-    cols_per_page = max(1, int(usable_w // col_w))
+    # MAIS ESPAÇO ENTRE LOCAIS (aumenta aqui)
+    col_w = 2.8 * cm  # antes ~2.2cm; aumenta para dar "respiro"
+    col_gap = 0.25 * cm  # espaço extra entre colunas
+    effective_col_w = col_w + col_gap
 
-    # Estimar quantas linhas cabem por página
+    cols_per_page = max(1, int(usable_w // effective_col_w))
+
     usable_h = (top - bottom) - header_h - 0.6 * cm
     rows_per_page = max(1, int(usable_h // row_h))
 
-    # Função para desenhar cabeçalho
     def draw_header(page_title: str, col_chunk: list):
         y = top
         c.setFont("Helvetica-Bold", 12)
@@ -290,50 +292,71 @@ def build_matrix_pdf(title: str, matrix_df: pd.DataFrame) -> bytes:
 
         y -= header_h
 
-        # Cabeçalhos da tabela
+        # Cabeçalhos
         c.setFont("Helvetica-Bold", font_head)
         c.drawString(left, y, "Espécie")
 
-        x = left + first_col_w
+        x0 = left + first_col_w
+        x = x0
         for col in col_chunk:
-            # cabeçalho centrado na célula
-            cx = x + col_w / 2
-            c.drawCentredString(cx, y, str(col)[:18])
-            x += col_w
+            cx = x + (col_w / 2)
+            c.drawCentredString(cx, y, str(col)[:22])
+            x += effective_col_w
 
-        # linha separadora
+        # Linha separadora (topo da tabela)
         y -= 0.25 * cm
+        c.setLineWidth(0.6)
         c.line(left, y, right, y)
         y -= 0.25 * cm
-        return y
 
-    # Paginação por chunks de colunas
+        return y, x0
+
+    # Paginação por colunas
     for col_start in range(0, len(cols), cols_per_page):
         col_chunk = cols[col_start: col_start + cols_per_page]
 
         # Paginação por linhas
         for row_start in range(0, len(rows), rows_per_page):
-            y = draw_header(title, col_chunk)
+            y, x0 = draw_header(title, col_chunk)
 
-            c.setFont("Helvetica", font_body)
-
+            # limites da grelha nesta página
+            table_top_y = y + 0.25 * cm   # logo abaixo da linha do header
             row_chunk = rows[row_start: row_start + rows_per_page]
-            for r in row_chunk:
-                # Coluna espécie (esquerda)
-                especie_txt = str(r)
-                c.drawString(left, y, especie_txt[:60])
+            table_bottom_y = table_top_y - (len(row_chunk) * row_h)
 
-                # Valores (centrados)
-                x = left + first_col_w
+            # Linhas verticais a separar LOCAIS (colunas)
+            c.setLineWidth(0.3)
+            x = x0
+            # linha antes da 1ª coluna de locais
+            c.line(x - (col_gap / 2), table_top_y, x - (col_gap / 2), table_bottom_y)
+
+            for _ in col_chunk:
+                # linha no fim de cada coluna
+                x_end = x + col_w + (col_gap / 2)
+                c.line(x_end, table_top_y, x_end, table_bottom_y)
+                x += effective_col_w
+
+            # Conteúdo
+            c.setFont("Helvetica", font_body)
+            y_row = table_top_y - row_h * 0.75  # ajustezinho para centrar visualmente
+
+            for r in row_chunk:
+                c.drawString(left, y_row, str(r)[:70])
+
+                x = x0
                 for col in col_chunk:
                     val = matrix_df.loc[r, col]
-                    cx = x + col_w / 2
-                    c.drawCentredString(cx, y, str(val))
-                    x += col_w
+                    cx = x + (col_w / 2)
+                    c.drawCentredString(cx, y_row, str(val))
+                    x += effective_col_w
 
-                y -= row_h
+                # (Opcional) linha horizontal por linha (se quiseres “grelha” completa)
+                c.setLineWidth(0.2)
+                y_line = y_row - (row_h * 0.35)
+                c.line(left, y_line, right, y_line)
 
-                if y <= bottom + row_h:
+                y_row -= row_h
+                if y_row <= bottom + row_h:
                     break
 
             c.showPage()
@@ -341,6 +364,7 @@ def build_matrix_pdf(title: str, matrix_df: pd.DataFrame) -> bytes:
     c.save()
     buffer.seek(0)
     return buffer.getvalue()
+
 
 # =========================
 # Header + Controls
