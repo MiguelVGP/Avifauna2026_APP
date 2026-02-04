@@ -28,7 +28,6 @@ DEFAULT_LIMIT = 5000
 # =========================
 st.set_page_config(page_title="Kobo Data Hub", layout="wide")
 
-
 # =========================
 # Login gate
 # =========================
@@ -752,8 +751,8 @@ elif section == "✅ Presença / Ausência":
                 st.caption("Verde = há registo nessa semana (dados/N_Semana) • Cinzento = sem registos")
 
 
-elif section == "🧩 Matriz Presença (Espécie x Local)":
-    st.subheader("🧩 Matriz Presença (Espécie × Local)")
+elif section == "🧩 Matriz Presença":
+    st.subheader("🧩 Matriz Presença")
 
     if df_amostras.empty or any(c not in df_amostras.columns for c in [LOCAL_COL, SPEC_COL]):
         st.info("Faltam colunas para construir a matriz (dados/Local, Amostragem/Espécie_final).")
@@ -865,7 +864,7 @@ elif section == "🧩 Matriz Presença (Espécie x Local)":
                 # centrar células
                 styled = matrix_display.style.set_properties(**{"text-align": "center"})
 
-                st.caption("✖ = espécie registada nesse local (com os filtros atuais).")
+                #st.caption("✖ = espécie registada nesse local (com os filtros atuais).")
                 st.dataframe(styled, width="stretch", height=650)
 
                 # Export Excel
@@ -877,7 +876,7 @@ elif section == "🧩 Matriz Presença (Espécie x Local)":
                 buffer.seek(0)
 
                 st.download_button(
-                    "⬇️ Exportar Excel (matriz)",
+                    "⬇️ Exportar Excel",
                     data=buffer,
                     file_name="matriz_presenca_especie_local.xlsx",
                     mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
@@ -890,7 +889,7 @@ elif section == "🧩 Matriz Presença (Espécie x Local)":
                 )
 
                 st.download_button(
-                    "⬇️ Download PDF (matriz)",
+                    "⬇️ Download PDF",
                     data=pdf_bytes,
                     file_name=f"matriz_presenca_especie_local_{date.today().strftime('%Y%m%d')}.pdf",
                     mime="application/pdf",
