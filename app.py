@@ -592,8 +592,8 @@ elif section == "📊 Abundância média":
             fig.update_layout(height=720, margin=dict(l=20, r=20, t=60, b=20))
             st.plotly_chart(fig, width="stretch")
 
-elif section == "🫧 Bubble — Top espécies (Abundância média)":
-    st.subheader("🫧 Bubble — Top espécies (Abundância média)")
+elif section == "🫧 Bubble — Top espécies":
+    st.subheader("🫧 Bubble — Top espécies")
 
     if "out_bubble_local" not in st.session_state:
         st.session_state.out_bubble_local = "Total"
