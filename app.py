@@ -624,7 +624,7 @@ elif section == "🫧 Bubble — Top espécies":
     top_n = int(st.session_state.out_bubble_topn)
 
     if df_amostras.empty or any(c not in df_amostras.columns for c in [LOCAL_COL, SPEC_COL, INDIV_COL]):
-        st.info("Faltam colunas necessárias para gerar o bubble chart.")
+        st.info("Faltam colunas necessárias para gerar o bubble output.")
     else:
         base = df_amostras[[LOCAL_COL, SPEC_COL, INDIV_COL]].copy()
         base[LOCAL_COL] = base[LOCAL_COL].fillna("").astype(str).str.strip()
@@ -650,40 +650,66 @@ elif section == "🫧 Bubble — Top espécies":
             # TOP N por abundância média
             agg = agg.sort_values("Abundância média (N/52)", ascending=False).head(top_n).reset_index(drop=True)
 
-            # Para o bubble ficar legível: eixo X só para espaçamento
-            agg["Posição"] = list(range(1, len(agg) + 1))
+            # posições lado-a-lado
+            agg["x"] = list(range(1, len(agg) + 1))
+            agg["y"] = 1
 
-            fig = px.scatter(
-                agg,
-                x="Posição",
-                y="Espécie",
-                size="Abundância média (N/52)",
-                hover_data={
-                    "Total indivíduos": True,
-                    "Abundância média (N/52)": ":.2f",
-                    "Posição": False,
-                },
-                text=agg["Abundância média (N/52)"].map(lambda v: f"{v:.2f}"),
-                title=f"Bubble chart — Top {top_n} espécies (Abundância média) — {local_plot}",
+            # tamanhos das bolhas (escala visual)
+            sizes = agg["Abundância média (N/52)"].astype(float).values
+            max_size_px = 110  # ajusta se quiseres bolhas maiores/menores
+            sizeref = (sizes.max() / (max_size_px ** 2)) if sizes.max() > 0 else 1
+
+            fig = go.Figure()
+
+            fig.add_trace(
+                go.Scatter(
+                    x=agg["x"],
+                    y=agg["y"],
+                    mode="markers+text",
+                    text=agg["Espécie"],
+                    textposition="middle center",
+                    hovertemplate=(
+                        "<b>%{text}</b><br>"
+                        "Abundância média (N/52): %{customdata[0]:.2f}<br>"
+                        "Total indivíduos: %{customdata[1]:.0f}<extra></extra>"
+                    ),
+                    customdata=agg[["Abundância média (N/52)", "Total indivíduos"]].values,
+                    marker=dict(
+                        size=agg["Abundância média (N/52)"],
+                        sizemode="area",
+                        sizeref=sizeref,
+                        sizemin=18,
+                        line=dict(color="black", width=1),
+                        opacity=0.90,
+                    ),
+                )
             )
 
-            # Melhorias de layout
-            fig.update_traces(textposition="middle right")
             fig.update_layout(
-                height=700,
-                xaxis=dict(visible=False),
-                yaxis=dict(title=""),
-                margin=dict(l=20, r=20, t=70, b=20),
+                title=f"Top {top_n} espécies — bolhas por abundância média — {local_plot}",
+                height=520,
+                margin=dict(l=10, r=10, t=70, b=10),
+                showlegend=False,
+                xaxis=dict(
+                    visible=False,
+                    range=[0.4, len(agg) + 0.6],  # espaço nas margens
+                ),
+                yaxis=dict(
+                    visible=False,
+                    range=[0.6, 1.4],
+                ),
             )
 
             st.plotly_chart(fig, width="stretch")
 
+            # tabela de apoio (opcional, mas útil)
             st.dataframe(
                 agg[["Espécie", "Total indivíduos", "Abundância média (N/52)"]],
                 width="stretch",
                 height=320,
                 hide_index=True,
             )
+
 
 elif section == "📄 PDF Lista de espécies":
     st.subheader("📄 PDF Lista de espécies")
