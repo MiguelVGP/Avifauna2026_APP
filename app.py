@@ -592,37 +592,61 @@ elif section == "📊 Abundância média":
             fig.update_layout(height=720, margin=dict(l=20, r=20, t=60, b=20))
             st.plotly_chart(fig, width="stretch")
 
-elif section == "🫧 Bubble — Top espécies":
-    st.subheader("🫧 Bubble — Top espécies")
+elif section == "🫧 Bubble Abundância":
+    st.subheader("🫧 Bubble Abundância")
 
-    if "out_bubble_local" not in st.session_state:
-        st.session_state.out_bubble_local = "Total"
-    if "out_bubble_topn" not in st.session_state:
-        st.session_state.out_bubble_topn = 5
+    import base64
+    from PIL import Image, ImageDraw
+
+    def image_to_circular_data_uri(img_path: str, out_px: int = 320) -> str:
+        im = Image.open(img_path).convert("RGBA")
+        im = im.resize((out_px, out_px), Image.LANCZOS)
+
+        mask = Image.new("L", (out_px, out_px), 0)
+        draw = ImageDraw.Draw(mask)
+        draw.ellipse((0, 0, out_px - 1, out_px - 1), fill=255)
+
+        im.putalpha(mask)
+
+        buf = io.BytesIO()
+        im.save(buf, format="PNG")
+        b64 = base64.b64encode(buf.getvalue()).decode("utf-8")
+        return f"data:image/png;base64,{b64}"
+
+    # ---- UI state
+    if "bb_local" not in st.session_state:
+        st.session_state.bb_local = "Total"
+    if "bb_topn" not in st.session_state:
+        st.session_state.bb_topn = 10
 
     locais_plot = ["Total"] + FIXED_LOCAIS
 
-    with st.form("form_bubble", clear_on_submit=False):
-        local_plot = st.selectbox(
-            "Local",
-            locais_plot,
-            index=locais_plot.index(st.session_state.out_bubble_local),
-        )
-        top_n = st.slider(
-            "Top N espécies",
-            min_value=3,
-            max_value=10,
-            value=int(st.session_state.out_bubble_topn),
-            step=1,
-        )
+    with st.form("form_bubble_abund", clear_on_submit=False):
+        col1, col2 = st.columns([2, 1])
+        with col1:
+            local_plot = st.selectbox(
+                "Local",
+                locais_plot,
+                index=locais_plot.index(st.session_state.bb_local),
+            )
+        with col2:
+            top_n = st.slider(
+                "Top N espécies",
+                min_value=3,
+                max_value=18,
+                value=int(st.session_state.bb_topn),
+                step=1,
+            )
+
         submitted = st.form_submit_button("Aplicar")
         if submitted:
-            st.session_state.out_bubble_local = local_plot
-            st.session_state.out_bubble_topn = top_n
+            st.session_state.bb_local = local_plot
+            st.session_state.bb_topn = top_n
 
-    local_plot = st.session_state.out_bubble_local
-    top_n = int(st.session_state.out_bubble_topn)
+    local_plot = st.session_state.bb_local
+    top_n = int(st.session_state.bb_topn)
 
+    # ---- Data checks
     if df_amostras.empty or any(c not in df_amostras.columns for c in [LOCAL_COL, SPEC_COL, INDIV_COL]):
         st.info("Faltam colunas necessárias para gerar o bubble output.")
     else:
@@ -634,10 +658,8 @@ elif section == "🫧 Bubble — Top espécies":
         if local_plot != "Total":
             base = base[base[LOCAL_COL] == local_plot]
 
-        base = base[(base[LOCAL_COL] != "") & (base[SPEC_COL] != "")].copy()
-
         if base.empty:
-            st.warning("Sem registos para este filtro.")
+            st.warning("Sem registos para este local.")
         else:
             agg = (
                 base.groupby(SPEC_COL, dropna=False)[INDIV_COL]
@@ -648,27 +670,30 @@ elif section == "🫧 Bubble — Top espécies":
             agg["Abundância média (N/52)"] = agg["Total indivíduos"] / 52.0
             agg = agg.sort_values("Abundância média (N/52)", ascending=False).head(top_n).reset_index(drop=True)
 
-            agg["x"] = list(range(1, len(agg) + 1))
+            # layout: bolhas lado a lado
+            agg["x"] = range(1, len(agg) + 1)
             agg["y"] = 1
 
+            # tamanhos (bolhas maiores)
             sizes = agg["Abundância média (N/52)"].astype(float).values
-            max_size_px = 180  # <<< bolhas maiores
-            sizeref = (sizes.max() / (max_size_px ** 2)) if sizes.max() > 0 else 1
+            max_size = float(max(sizes)) if len(sizes) else 1.0
+            sizeref = (2.0 * max_size) / (180.0 ** 2) if max_size > 0 else 1.0  # 180 => bolha grande
 
-            agg["label"] = agg.apply(
-                lambda r: f"<b>{r['Espécie']}</b><br>{r['Abundância média (N/52)']:.2f}",
-                axis=1
-            )
+            # imagem circular para Passer domesticus (se existir)
+            PASSER_IMG_PATH = "assets/images/passer_domesticus.jpg"
+            species_images = {}
+            try:
+                species_images["passer domesticus"] = image_to_circular_data_uri(PASSER_IMG_PATH, out_px=360)
+            except Exception:
+                pass
 
             fig = go.Figure()
+
             fig.add_trace(
                 go.Scatter(
                     x=agg["x"],
                     y=agg["y"],
-                    mode="markers+text",
-                    text=agg["label"],
-                    textposition="middle center",
-                    textfont=dict(color="black"),
+                    mode="markers",
                     hovertemplate=(
                         "<b>%{customdata[0]}</b><br>"
                         "Abundância média (N/52): %{customdata[1]:.2f}<br>"
@@ -679,24 +704,66 @@ elif section == "🫧 Bubble — Top espécies":
                         size=agg["Abundância média (N/52)"],
                         sizemode="area",
                         sizeref=sizeref,
-                        sizemin=22,
-                        color="#BFF7C9",
+                        sizemin=60,
+                        color="#BFF7C9",  # verde claro
                         line=dict(color="black", width=1),
                         opacity=0.92,
                     ),
                 )
             )
 
+            for _, r in agg.iterrows():
+                especie = str(r["Espécie"])
+                especie_key = especie.lower().strip()
+                x = float(r["x"])
+                y = float(r["y"])
+                abund = float(r["Abundância média (N/52)"])
+
+                has_image = especie_key in species_images
+
+                # imagem (abaixo do texto)
+                if has_image:
+                    fig.add_layout_image(
+                        dict(
+                            source=species_images[especie_key],
+                            xref="x",
+                            yref="y",
+                            x=x,
+                            y=y,
+                            xanchor="center",
+                            yanchor="middle",
+                            sizex=0.92,
+                            sizey=0.92,
+                            layer="below",
+                            opacity=1.0,
+                        )
+                    )
+
+                # texto dentro da bolha (preto bold) + valor por baixo
+                fig.add_annotation(
+                    x=x, y=y,
+                    xref="x", yref="y",
+                    text=f"<b>{especie}</b><br><b>{abund:.2f}</b>",
+                    showarrow=False,
+                    align="center",
+                    font=dict(color="black", size=16),
+                    bgcolor="rgba(255,255,255,0.80)" if has_image else "rgba(0,0,0,0)",
+                    bordercolor="rgba(0,0,0,0.25)" if has_image else "rgba(0,0,0,0)",
+                    borderwidth=1 if has_image else 0,
+                    borderpad=5 if has_image else 0,
+                )
+
             fig.update_layout(
-                title=f"Top {top_n} espécies — bolhas por abundância média — {local_plot}",
-                height=520,
+                title=f"Top {top_n} — Abundância média (N/52) — {local_plot}",
+                height=560,
                 margin=dict(l=10, r=10, t=70, b=10),
                 showlegend=False,
-                xaxis=dict(visible=False, range=[0.4, len(agg) + 0.6]),
-                yaxis=dict(visible=False, range=[0.6, 1.4]),
+                xaxis=dict(visible=False, range=[0.4, len(agg) + 0.6], fixedrange=True),
+                yaxis=dict(visible=False, range=[0.55, 1.45], fixedrange=True),
             )
 
             st.plotly_chart(fig, width="stretch")
+
 
 
 elif section == "📄 PDF Lista de espécies":
