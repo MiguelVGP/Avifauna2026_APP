@@ -646,18 +646,20 @@ elif section == "🫧 Bubble — Top espécies":
                 .rename(columns={SPEC_COL: "Espécie", INDIV_COL: "Total indivíduos"})
             )
             agg["Abundância média (N/52)"] = agg["Total indivíduos"] / 52.0
-
-            # TOP N por abundância média
             agg = agg.sort_values("Abundância média (N/52)", ascending=False).head(top_n).reset_index(drop=True)
 
-            # posições lado-a-lado
             agg["x"] = list(range(1, len(agg) + 1))
             agg["y"] = 1
 
-            # tamanhos das bolhas (escala visual)
             sizes = agg["Abundância média (N/52)"].astype(float).values
-            max_size_px = 110  # ajusta se quiseres bolhas maiores/menores
+            max_size_px = 110
             sizeref = (sizes.max() / (max_size_px ** 2)) if sizes.max() > 0 else 1
+
+            # Texto dentro da bolha: nome + linha com abundância
+            agg["label"] = agg.apply(
+                lambda r: f"<b>{r['Espécie']}</b><br>{r['Abundância média (N/52)']:.2f}",
+                axis=1
+            )
 
             fig = go.Figure()
 
@@ -666,21 +668,23 @@ elif section == "🫧 Bubble — Top espécies":
                     x=agg["x"],
                     y=agg["y"],
                     mode="markers+text",
-                    text=agg["Espécie"],
+                    text=agg["label"],
                     textposition="middle center",
+                    textfont=dict(color="black"),  # bold vem do <b> no HTML
                     hovertemplate=(
-                        "<b>%{text}</b><br>"
-                        "Abundância média (N/52): %{customdata[0]:.2f}<br>"
-                        "Total indivíduos: %{customdata[1]:.0f}<extra></extra>"
+                        "<b>%{customdata[0]}</b><br>"
+                        "Abundância média (N/52): %{customdata[1]:.2f}<br>"
+                        "Total indivíduos: %{customdata[2]:.0f}<extra></extra>"
                     ),
-                    customdata=agg[["Abundância média (N/52)", "Total indivíduos"]].values,
+                    customdata=agg[["Espécie", "Abundância média (N/52)", "Total indivíduos"]].values,
                     marker=dict(
                         size=agg["Abundância média (N/52)"],
                         sizemode="area",
                         sizeref=sizeref,
                         sizemin=18,
+                        color="#BFF7C9",  # verde claro
                         line=dict(color="black", width=1),
-                        opacity=0.90,
+                        opacity=0.92,
                     ),
                 )
             )
@@ -692,7 +696,7 @@ elif section == "🫧 Bubble — Top espécies":
                 showlegend=False,
                 xaxis=dict(
                     visible=False,
-                    range=[0.4, len(agg) + 0.6],  # espaço nas margens
+                    range=[0.4, len(agg) + 0.6],
                 ),
                 yaxis=dict(
                     visible=False,
@@ -702,7 +706,6 @@ elif section == "🫧 Bubble — Top espécies":
 
             st.plotly_chart(fig, width="stretch")
 
-            # tabela de apoio (opcional, mas útil)
             st.dataframe(
                 agg[["Espécie", "Total indivíduos", "Abundância média (N/52)"]],
                 width="stretch",
