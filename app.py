@@ -652,17 +652,15 @@ elif section == "🫧 Bubble — Top espécies":
             agg["y"] = 1
 
             sizes = agg["Abundância média (N/52)"].astype(float).values
-            max_size_px = 110
+            max_size_px = 180  # <<< bolhas maiores
             sizeref = (sizes.max() / (max_size_px ** 2)) if sizes.max() > 0 else 1
 
-            # Texto dentro da bolha: nome + linha com abundância
             agg["label"] = agg.apply(
                 lambda r: f"<b>{r['Espécie']}</b><br>{r['Abundância média (N/52)']:.2f}",
                 axis=1
             )
 
             fig = go.Figure()
-
             fig.add_trace(
                 go.Scatter(
                     x=agg["x"],
@@ -670,7 +668,7 @@ elif section == "🫧 Bubble — Top espécies":
                     mode="markers+text",
                     text=agg["label"],
                     textposition="middle center",
-                    textfont=dict(color="black"),  # bold vem do <b> no HTML
+                    textfont=dict(color="black"),
                     hovertemplate=(
                         "<b>%{customdata[0]}</b><br>"
                         "Abundância média (N/52): %{customdata[1]:.2f}<br>"
@@ -681,8 +679,8 @@ elif section == "🫧 Bubble — Top espécies":
                         size=agg["Abundância média (N/52)"],
                         sizemode="area",
                         sizeref=sizeref,
-                        sizemin=18,
-                        color="#BFF7C9",  # verde claro
+                        sizemin=22,
+                        color="#BFF7C9",
                         line=dict(color="black", width=1),
                         opacity=0.92,
                     ),
@@ -694,24 +692,11 @@ elif section == "🫧 Bubble — Top espécies":
                 height=520,
                 margin=dict(l=10, r=10, t=70, b=10),
                 showlegend=False,
-                xaxis=dict(
-                    visible=False,
-                    range=[0.4, len(agg) + 0.6],
-                ),
-                yaxis=dict(
-                    visible=False,
-                    range=[0.6, 1.4],
-                ),
+                xaxis=dict(visible=False, range=[0.4, len(agg) + 0.6]),
+                yaxis=dict(visible=False, range=[0.6, 1.4]),
             )
 
             st.plotly_chart(fig, width="stretch")
-
-            st.dataframe(
-                agg[["Espécie", "Total indivíduos", "Abundância média (N/52)"]],
-                width="stretch",
-                height=320,
-                hide_index=True,
-            )
 
 
 elif section == "📄 PDF Lista de espécies":
