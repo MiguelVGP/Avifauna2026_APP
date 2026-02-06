@@ -399,6 +399,7 @@ OPTIONS = [
     "🐦‍⬛ Visão geral",
     "📍 Espécies por local",
     "📊 Abundância média",
+    "🫧 Bubble — Top espécies",
     "📄 PDF Lista de espécies",
     "✅ Presença / Ausência",
     "🧩 Matriz Presença",   # <-- NOVA
@@ -591,6 +592,98 @@ elif section == "📊 Abundância média":
             fig.update_layout(height=720, margin=dict(l=20, r=20, t=60, b=20))
             st.plotly_chart(fig, width="stretch")
 
+elif section == "🫧 Bubble — Top espécies (Abundância média)":
+    st.subheader("🫧 Bubble — Top espécies (Abundância média)")
+
+    if "out_bubble_local" not in st.session_state:
+        st.session_state.out_bubble_local = "Total"
+    if "out_bubble_topn" not in st.session_state:
+        st.session_state.out_bubble_topn = 5
+
+    locais_plot = ["Total"] + FIXED_LOCAIS
+
+    with st.form("form_bubble", clear_on_submit=False):
+        local_plot = st.selectbox(
+            "Local",
+            locais_plot,
+            index=locais_plot.index(st.session_state.out_bubble_local),
+        )
+        top_n = st.slider(
+            "Top N espécies",
+            min_value=3,
+            max_value=10,
+            value=int(st.session_state.out_bubble_topn),
+            step=1,
+        )
+        submitted = st.form_submit_button("Aplicar")
+        if submitted:
+            st.session_state.out_bubble_local = local_plot
+            st.session_state.out_bubble_topn = top_n
+
+    local_plot = st.session_state.out_bubble_local
+    top_n = int(st.session_state.out_bubble_topn)
+
+    if df_amostras.empty or any(c not in df_amostras.columns for c in [LOCAL_COL, SPEC_COL, INDIV_COL]):
+        st.info("Faltam colunas necessárias para gerar o bubble chart.")
+    else:
+        base = df_amostras[[LOCAL_COL, SPEC_COL, INDIV_COL]].copy()
+        base[LOCAL_COL] = base[LOCAL_COL].fillna("").astype(str).str.strip()
+        base[SPEC_COL] = base[SPEC_COL].fillna("").astype(str).str.strip()
+        base[INDIV_COL] = pd.to_numeric(base[INDIV_COL], errors="coerce").fillna(0)
+
+        if local_plot != "Total":
+            base = base[base[LOCAL_COL] == local_plot]
+
+        base = base[(base[LOCAL_COL] != "") & (base[SPEC_COL] != "")].copy()
+
+        if base.empty:
+            st.warning("Sem registos para este filtro.")
+        else:
+            agg = (
+                base.groupby(SPEC_COL, dropna=False)[INDIV_COL]
+                .sum()
+                .reset_index()
+                .rename(columns={SPEC_COL: "Espécie", INDIV_COL: "Total indivíduos"})
+            )
+            agg["Abundância média (N/52)"] = agg["Total indivíduos"] / 52.0
+
+            # TOP N por abundância média
+            agg = agg.sort_values("Abundância média (N/52)", ascending=False).head(top_n).reset_index(drop=True)
+
+            # Para o bubble ficar legível: eixo X só para espaçamento
+            agg["Posição"] = list(range(1, len(agg) + 1))
+
+            fig = px.scatter(
+                agg,
+                x="Posição",
+                y="Espécie",
+                size="Abundância média (N/52)",
+                hover_data={
+                    "Total indivíduos": True,
+                    "Abundância média (N/52)": ":.2f",
+                    "Posição": False,
+                },
+                text=agg["Abundância média (N/52)"].map(lambda v: f"{v:.2f}"),
+                title=f"Bubble chart — Top {top_n} espécies (Abundância média) — {local_plot}",
+            )
+
+            # Melhorias de layout
+            fig.update_traces(textposition="middle right")
+            fig.update_layout(
+                height=700,
+                xaxis=dict(visible=False),
+                yaxis=dict(title=""),
+                margin=dict(l=20, r=20, t=70, b=20),
+            )
+
+            st.plotly_chart(fig, width="stretch")
+
+            st.dataframe(
+                agg[["Espécie", "Total indivíduos", "Abundância média (N/52)"]],
+                width="stretch",
+                height=320,
+                hide_index=True,
+            )
 
 elif section == "📄 PDF Lista de espécies":
     st.subheader("📄 PDF Lista de espécies")
