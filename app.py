@@ -592,8 +592,8 @@ elif section == "📊 Abundância média":
             fig.update_layout(height=720, margin=dict(l=20, r=20, t=60, b=20))
             st.plotly_chart(fig, width="stretch")
 
-elif section == "🫧 Bubble Abundância":
-    st.subheader("🫧 Bubble Abundância")
+elif section == "🫧 Bubble — Top espécies":
+    st.subheader("🫧 Bubble — Top espécies")
 
     import base64
     from PIL import Image, ImageDraw
