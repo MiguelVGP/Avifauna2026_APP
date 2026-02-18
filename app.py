@@ -739,7 +739,7 @@ elif section == "🫧 Bubble — Top espécies":
                         placed.append((rr + ri + pad, 0.0))
                 return placed
             
-            if n <= 7:
+            if n <= 5:
                 xs = [0.0]
                 for i in range(1, n):
                     xs.append(xs[-1] + (r_units[i - 1] + r_units[i] + pad_units))
