@@ -763,7 +763,7 @@ elif section == "🫧 Bubble — Top espécies":
             agg["x"] = xs
             agg["y"] = ys
 
-            PLOT_W = 1200  # ajusta se quiseres (tem de bater com fig.update_layout(width=...))
+            PLOT_W = 1700  # ajusta se quiseres (tem de bater com fig.update_layout(width=...))
 
             x_min = float(agg["x"].min()) - 2.0
             x_max = float(agg["x"].max()) + 2.0
