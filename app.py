@@ -682,17 +682,27 @@ elif section == "🫧 Bubble — Top espécies":
             )
 
             # --- Layout fixo: o "canvas" não muda com Top N
-            MAX_SLOTS = 18          # máximo do slider
-            GAP = 3.2               # distância entre centros (aumenta se quiseres mais espaço)
+            MAX_SLOTS = 18
+            GAP = 3.8                 # mais espaço entre centros (aumenta se quiseres ainda mais)
+            MAX_BUBBLE_PX = 170        # controla o tamanho máximo das bolhas (px). Sobe/desce aqui.
+            PAD_X = 1.2               # padding lateral em unidades do eixo
+             # distância entre centros (aumenta se quiseres mais espaço)
             
-            agg["slot"] = range(0, len(agg))
-            agg["x"] = agg["slot"].apply(lambda i: 1 + i * GAP)
+            n = len(agg)
+
+            canvas_center = 1 + ((MAX_SLOTS - 1) * GAP) / 2
+            group_width = (n - 1) * GAP if n > 1 else 0
+            x_start = canvas_center - (group_width / 2)
+            
+            agg["slot"] = range(0, n)
+            agg["x"] = agg["slot"].apply(lambda i: x_start + i * GAP)
             agg["y"] = 1
+
 
             sizes = agg["Abundância média (N/52)"].astype(float).values
             max_size = float(max(sizes)) if len(sizes) else 1.0
-            sizeref = (2.0 * max_size) / (180.0 ** 2) if max_size > 0 else 1.0
-
+            sizeref = (2.0 * max_size) / (MAX_BUBBLE_PX ** 2) if max_size > 0 else 1.0
+            
             # =========================
             # Imagens por espécie
             # =========================
@@ -800,9 +810,10 @@ elif section == "🫧 Bubble — Top espécies":
                 showlegend=False,
                 xaxis=dict(
                     visible=False,
-                    range=[0.4, 1 + (MAX_SLOTS - 1) * GAP + 0.6],
+                    range=[1 - PAD_X, 1 + (MAX_SLOTS - 1) * GAP + PAD_X],
                     fixedrange=True,
                 ),
+
 
                 yaxis=dict(
                     visible=False,
