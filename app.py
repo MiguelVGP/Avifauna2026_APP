@@ -706,6 +706,7 @@ elif section == "🫧 Bubble — Top espécies":
             MIN_GAP_PX = 18
             
             r_units = rad_px * PX_TO_X
+            agg["r_units"] = r_units
             pad_units = MIN_GAP_PX * PX_TO_X
             
             def pack_circles_spiral(radii, pad=0.0, angle_step=0.35, r_step=0.6, max_iter=25000):
@@ -826,8 +827,7 @@ elif section == "🫧 Bubble — Top espécies":
                 # imagem proporcional ao tamanho da bolha
                 # imagem com tamanho fixo (em unidades do eixo) para encher o círculo visualmente
                 # (ajusta o 0.92 se quiseres mais/menos "fill")
-                img_size = GAP * 0.92
-
+                img_size = float(r["r_units"]) * 2.0 * 0.98   # 0.98 = “fill” (ajusta 0.95–1.02)
 
                 if has_image:
                     fig.add_layout_image(
