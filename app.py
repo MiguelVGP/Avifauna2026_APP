@@ -683,44 +683,36 @@ elif section == "🫧 Bubble — Top espécies":
 
             # --- Layout fixo: o "canvas" não muda com Top N
             MAX_SLOTS = 18
-            GAP = 3.8                 # mais espaço entre centros (aumenta se quiseres ainda mais)
-            MAX_BUBBLE_PX = 170        # controla o tamanho máximo das bolhas (px). Sobe/desce aqui.
-            PAD_X = 1.2               # padding lateral em unidades do eixo
-             # distância entre centros (aumenta se quiseres mais espaço)
-            
-            n = len(agg)
-
-            canvas_center = 1 + ((MAX_SLOTS - 1) * GAP) / 2
-            group_width = (n - 1) * GAP if n > 1 else 0
-            x_start = canvas_center - (group_width / 2)
+            GAP = 3.8
+            MAX_BUBBLE_PX = 170     # controla o tamanho máximo (px)
+            PAD_X = 1.2
             
             import numpy as np
-
+            
             n = len(agg)
             agg["y"] = 1
             
-            # --- raio em px (Plotly: sizemode="area" => size ~ área)
+            # 1) sizeref TEM de existir antes de qualquer cálculo que dependa dele
+            sizes = agg["Abundância média (N/52)"].astype(float).values
+            max_size = float(np.max(sizes)) if len(sizes) else 1.0
+            sizeref = (2.0 * max_size) / (MAX_BUBBLE_PX ** 2) if max_size > 0 else 1.0
+            
+            # 2) calcular raios em px (Plotly sizemode="area")
             # diâmetro_px = sqrt(size_val / sizeref)
-            # raio_px = diâmetro_px / 2
-            size_vals = agg["Abundância média (N/52)"].astype(float).values
-            diam_px = np.sqrt(size_vals / sizeref)
+            size_vals = np.maximum(sizes, 0)
+            diam_px = np.sqrt(size_vals / sizeref) if sizeref > 0 else np.zeros_like(size_vals)
             rad_px = diam_px / 2.0
             
-            # --- fator px->unidade do eixo (ajusta aqui se quiseres MAIS/ MENOS espaço)
-            PX_TO_X = 0.03   # (bom ponto de partida)
+            # 3) espaçamento cumulativo (evita bolhas coladas)
+            PX_TO_X = 0.03    # aumenta para mais espaço entre bolhas
+            MIN_GAP_PX = 18   # gap mínimo entre bolhas (em px)
             
-            # gap mínimo entre bolhas (em px)
-            MIN_GAP_PX = 18
-            
-            # x cumulativo garantindo: distância entre centros >= raio_i + raio_{i-1} + gap
             xs = [1.0]
             for i in range(1, n):
-                need_px = rad_px[i-1] + rad_px[i] + MIN_GAP_PX
+                need_px = rad_px[i - 1] + rad_px[i] + MIN_GAP_PX
                 xs.append(xs[-1] + need_px * PX_TO_X)
             
             agg["x"] = xs
-
-
 
             sizes = agg["Abundância média (N/52)"].astype(float).values
             max_size = float(max(sizes)) if len(sizes) else 1.0
