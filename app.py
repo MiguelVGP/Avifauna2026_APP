@@ -860,8 +860,11 @@ elif section == "🫧 Bubble — Top espécies":
                     borderwidth=1 if has_image else 0,
                     borderpad=5 if has_image else 0,
                 )
-            x_min = min(agg["x"]) - 2.0
-            x_max = max(agg["x"]) + 2.0
+           # depois de definires agg["x"] e agg["y"]
+            x_min = float(agg["x"].min()) - 2.0
+            x_max = float(agg["x"].max()) + 2.0
+            y_min = float(agg["y"].min()) - 2.0
+            y_max = float(agg["y"].max()) + 2.0
             
             fig.update_layout(
                 title=f"Top {top_n} — Abundância média (N/52) — {local_plot}",
@@ -869,7 +872,7 @@ elif section == "🫧 Bubble — Top espécies":
                 margin=dict(l=10, r=10, t=70, b=10),
                 showlegend=False,
                 xaxis=dict(visible=False, range=[x_min, x_max], fixedrange=True),
-                yaxis=dict(visible=False, range=[0.55, 1.45], fixedrange=True),
+                yaxis=dict(visible=False, range=[y_min, y_max], fixedrange=True),
             )
 
             st.plotly_chart(fig, width="stretch")
