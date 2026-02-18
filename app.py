@@ -700,7 +700,9 @@ elif section == "🫧 Bubble — Top espécies":
             size_vals = np.maximum(sizes, 0)
             diam_px = np.sqrt(size_vals / sizeref) if sizeref > 0 else np.zeros_like(size_vals)
             rad_px = diam_px / 2.0
-            
+
+            agg["diam_px"] = diam_px
+
             # 3) Layout: linha (N<=7) | nuvem (N>7)
             PX_TO_X = 0.03
             MIN_GAP_PX = 18
@@ -760,6 +762,15 @@ elif section == "🫧 Bubble — Top espécies":
             # aplicar ao dataframe
             agg["x"] = xs
             agg["y"] = ys
+
+            PLOT_W = 1200  # ajusta se quiseres (tem de bater com fig.update_layout(width=...))
+
+            x_min = float(agg["x"].min()) - 2.0
+            x_max = float(agg["x"].max()) + 2.0
+            y_min = float(agg["y"].min()) - 2.0
+            y_max = float(agg["y"].max()) + 2.0
+            
+            units_per_px = (x_max - x_min) / PLOT_W
 
 
             # =========================
@@ -827,7 +838,8 @@ elif section == "🫧 Bubble — Top espécies":
                 # imagem proporcional ao tamanho da bolha
                 # imagem com tamanho fixo (em unidades do eixo) para encher o círculo visualmente
                 # (ajusta o 0.92 se quiseres mais/menos "fill")
-                img_size = float(r["r_units"]) * 2.0 * 0.98   # 0.98 = “fill” (ajusta 0.95–1.02)
+                img_size = float(r["diam_px"]) * units_per_px * 0.98
+                # 0.98 = “fill” (ajusta 0.95–1.02)
 
                 if has_image:
                     fig.add_layout_image(
@@ -873,8 +885,10 @@ elif section == "🫧 Bubble — Top espécies":
                 showlegend=False,
                 xaxis=dict(visible=False, range=[x_min, x_max], fixedrange=True),
                 yaxis=dict(visible=False, range=[y_min, y_max], fixedrange=True),
+                width=PLOT_W,
+                height=560,
             )
-
+            fig.update_yaxes(scaleanchor="x", scaleratio=1)
             st.plotly_chart(fig, width="stretch")
 
 
