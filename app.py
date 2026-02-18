@@ -878,17 +878,22 @@ elif section == "🫧 Bubble — Top espécies":
             y_min = float(agg["y"].min()) - 2.0
             y_max = float(agg["y"].max()) + 2.0
             
+            # depois de definires x_min/x_max/y_min/y_max e units_per_px
+            PLOT_W = 1200  # ajusta se quiseres
+            
             fig.update_layout(
                 title=f"Top {top_n} — Abundância média (N/52) — {local_plot}",
-                height=560,
+                width=PLOT_W,
+                height=560,  # <- fica só UMA vez
                 margin=dict(l=10, r=10, t=70, b=10),
                 showlegend=False,
                 xaxis=dict(visible=False, range=[x_min, x_max], fixedrange=True),
                 yaxis=dict(visible=False, range=[y_min, y_max], fixedrange=True),
-                width=PLOT_W,
-                height=560,
             )
+            
+            # importante para manter escala igual em X e Y
             fig.update_yaxes(scaleanchor="x", scaleratio=1)
+
             st.plotly_chart(fig, width="stretch")
 
 
