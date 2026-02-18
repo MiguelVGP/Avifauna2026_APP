@@ -684,21 +684,19 @@ elif section == "🫧 Bubble — Top espécies":
             # --- Layout fixo: o "canvas" não muda com Top N
             MAX_SLOTS = 18
             GAP = 3.8
-            MAX_BUBBLE_PX = 170     # controla o tamanho máximo (px)
+            MAX_BUBBLE_PX = 170
             PAD_X = 1.2
             
             import numpy as np
             
             n = len(agg)
-            agg["y"] = 1
             
-            # 1) sizeref TEM de existir antes de qualquer cálculo que dependa dele
+            # 1) sizeref
             sizes = agg["Abundância média (N/52)"].astype(float).values
             max_size = float(np.max(sizes)) if len(sizes) else 1.0
             sizeref = (2.0 * max_size) / (MAX_BUBBLE_PX ** 2) if max_size > 0 else 1.0
             
-            # 2) calcular raios em px (Plotly sizemode="area")
-            # diâmetro_px = sqrt(size_val / sizeref)
+            # 2) raios em px
             size_vals = np.maximum(sizes, 0)
             diam_px = np.sqrt(size_vals / sizeref) if sizeref > 0 else np.zeros_like(size_vals)
             rad_px = diam_px / 2.0
@@ -715,18 +713,15 @@ elif section == "🫧 Bubble — Top espécies":
                 n = len(radii)
                 if n == 0:
                     return []
-            
                 placed = [(0.0, 0.0)]
                 for i in range(1, n):
                     ri = radii[i]
                     t = 0.0
                     rr = 0.0
                     found = False
-            
                     for _ in range(max_iter):
                         x = rr * np.cos(t)
                         y = rr * np.sin(t)
-            
                         ok = True
                         for (xj, yj), rj in zip(placed, radii[:i]):
                             dx = x - xj
@@ -734,31 +729,23 @@ elif section == "🫧 Bubble — Top espécies":
                             if (dx*dx + dy*dy) < (ri + rj + pad) ** 2:
                                 ok = False
                                 break
-            
                         if ok:
                             placed.append((x, y))
                             found = True
                             break
-            
                         t += angle_step
                         rr += r_step * angle_step
-            
                     if not found:
                         placed.append((rr + ri + pad, 0.0))
-            
                 return placed
             
-            n = len(agg)
-            
             if n <= 7:
-                # LINHA (como tinhas, mas com base no raio real)
                 xs = [0.0]
                 for i in range(1, n):
                     xs.append(xs[-1] + (r_units[i - 1] + r_units[i] + pad_units))
                 ys = [0.0] * n
             else:
-                # NUVEM (circle packing)
-                order = np.argsort(-r_units)          # maior -> menor
+                order = np.argsort(-r_units)  # maior->menor
                 r_sorted = r_units[order]
                 pts_sorted = pack_circles_spiral(r_sorted, pad=pad_units)
             
@@ -769,10 +756,11 @@ elif section == "🫧 Bubble — Top espécies":
                 xs = [p[0] for p in pts]
                 ys = [p[1] for p in pts]
             
+            # aplicar ao dataframe
             agg["x"] = xs
             agg["y"] = ys
 
-        
+
             # =========================
             # Imagens por espécie
             # =========================
