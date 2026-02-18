@@ -694,9 +694,32 @@ elif section == "🫧 Bubble — Top espécies":
             group_width = (n - 1) * GAP if n > 1 else 0
             x_start = canvas_center - (group_width / 2)
             
-            agg["slot"] = range(0, n)
-            agg["x"] = agg["slot"].apply(lambda i: x_start + i * GAP)
+            import numpy as np
+
+            n = len(agg)
             agg["y"] = 1
+            
+            # --- raio em px (Plotly: sizemode="area" => size ~ área)
+            # diâmetro_px = sqrt(size_val / sizeref)
+            # raio_px = diâmetro_px / 2
+            size_vals = agg["Abundância média (N/52)"].astype(float).values
+            diam_px = np.sqrt(size_vals / sizeref)
+            rad_px = diam_px / 2.0
+            
+            # --- fator px->unidade do eixo (ajusta aqui se quiseres MAIS/ MENOS espaço)
+            PX_TO_X = 0.03   # (bom ponto de partida)
+            
+            # gap mínimo entre bolhas (em px)
+            MIN_GAP_PX = 18
+            
+            # x cumulativo garantindo: distância entre centros >= raio_i + raio_{i-1} + gap
+            xs = [1.0]
+            for i in range(1, n):
+                need_px = rad_px[i-1] + rad_px[i] + MIN_GAP_PX
+                xs.append(xs[-1] + need_px * PX_TO_X)
+            
+            agg["x"] = xs
+
 
 
             sizes = agg["Abundância média (N/52)"].astype(float).values
@@ -802,28 +825,19 @@ elif section == "🫧 Bubble — Top espécies":
                     borderwidth=1 if has_image else 0,
                     borderpad=5 if has_image else 0,
                 )
-
+            x_min = min(agg["x"]) - 2.0
+            x_max = max(agg["x"]) + 2.0
+            
             fig.update_layout(
                 title=f"Top {top_n} — Abundância média (N/52) — {local_plot}",
                 height=560,
                 margin=dict(l=10, r=10, t=70, b=10),
                 showlegend=False,
-                xaxis=dict(
-                    visible=False,
-                    range=[1 - PAD_X, 1 + (MAX_SLOTS - 1) * GAP + PAD_X],
-                    fixedrange=True,
-                ),
-
-
-                yaxis=dict(
-                    visible=False,
-                    range=[0.55, 1.45],
-                    fixedrange=True,
-                ),
+                xaxis=dict(visible=False, range=[x_min, x_max], fixedrange=True),
+                yaxis=dict(visible=False, range=[0.55, 1.45], fixedrange=True),
             )
 
             st.plotly_chart(fig, width="stretch")
-
 
 
 elif section == "📄 PDF Lista de espécies":
