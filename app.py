@@ -681,8 +681,12 @@ elif section == "🫧 Bubble — Top espécies":
                 .reset_index(drop=True)
             )
 
-            # Layout lado a lado
-            agg["x"] = range(1, len(agg) + 1)
+            # --- Layout fixo: o "canvas" não muda com Top N
+            MAX_SLOTS = 18          # máximo do slider
+            GAP = 3.2               # distância entre centros (aumenta se quiseres mais espaço)
+            
+            agg["slot"] = range(0, len(agg))
+            agg["x"] = agg["slot"].apply(lambda i: 1 + i * GAP)
             agg["y"] = 1
 
             sizes = agg["Abundância média (N/52)"].astype(float).values
@@ -752,8 +756,10 @@ elif section == "🫧 Bubble — Top espécies":
                 has_image = especie_key in species_images
 
                 # imagem proporcional ao tamanho da bolha
-                img_size = 0.10 + 0.015 * abund
-                img_size = max(0.25, min(img_size, 0.95))
+                # imagem com tamanho fixo (em unidades do eixo) para encher o círculo visualmente
+                # (ajusta o 0.92 se quiseres mais/menos "fill")
+                img_size = GAP * 0.92
+
 
                 if has_image:
                     fig.add_layout_image(
@@ -794,9 +800,10 @@ elif section == "🫧 Bubble — Top espécies":
                 showlegend=False,
                 xaxis=dict(
                     visible=False,
-                    range=[0.4, len(agg) + 0.6],
+                    range=[0.4, 1 + (MAX_SLOTS - 1) * GAP + 0.6],
                     fixedrange=True,
                 ),
+
                 yaxis=dict(
                     visible=False,
                     range=[0.55, 1.45],
