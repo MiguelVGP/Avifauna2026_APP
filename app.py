@@ -693,9 +693,9 @@ elif section == "🫧 Bubble — Top espécies":
             agg["y"] = 1
             
             # 1) sizeref TEM de existir antes de qualquer cálculo que dependa dele
-            #sizes = agg["Abundância média (N/52)"].astype(float).values
-            #max_size = float(np.max(sizes)) if len(sizes) else 1.0
-            #sizeref = (2.0 * max_size) / (MAX_BUBBLE_PX ** 2) if max_size > 0 else 1.0
+            sizes = agg["Abundância média (N/52)"].astype(float).values
+            max_size = float(np.max(sizes)) if len(sizes) else 1.0
+            sizeref = (2.0 * max_size) / (MAX_BUBBLE_PX ** 2) if max_size > 0 else 1.0
             
             # 2) calcular raios em px (Plotly sizemode="area")
             # diâmetro_px = sqrt(size_val / sizeref)
