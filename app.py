@@ -693,9 +693,9 @@ elif section == "🫧 Bubble — Top espécies":
             agg["y"] = 1
             
             # 1) sizeref TEM de existir antes de qualquer cálculo que dependa dele
-            sizes = agg["Abundância média (N/52)"].astype(float).values
-            max_size = float(np.max(sizes)) if len(sizes) else 1.0
-            sizeref = (2.0 * max_size) / (MAX_BUBBLE_PX ** 2) if max_size > 0 else 1.0
+            #sizes = agg["Abundância média (N/52)"].astype(float).values
+            #max_size = float(np.max(sizes)) if len(sizes) else 1.0
+            #sizeref = (2.0 * max_size) / (MAX_BUBBLE_PX ** 2) if max_size > 0 else 1.0
             
             # 2) calcular raios em px (Plotly sizemode="area")
             # diâmetro_px = sqrt(size_val / sizeref)
@@ -703,21 +703,76 @@ elif section == "🫧 Bubble — Top espécies":
             diam_px = np.sqrt(size_vals / sizeref) if sizeref > 0 else np.zeros_like(size_vals)
             rad_px = diam_px / 2.0
             
-            # 3) espaçamento cumulativo (evita bolhas coladas)
-            PX_TO_X = 0.03    # aumenta para mais espaço entre bolhas
-            MIN_GAP_PX = 18   # gap mínimo entre bolhas (em px)
+            # 3) Layout: linha (N<=7) | nuvem (N>7)
+            PX_TO_X = 0.03
+            MIN_GAP_PX = 18
             
-            xs = [1.0]
-            for i in range(1, n):
-                need_px = rad_px[i - 1] + rad_px[i] + MIN_GAP_PX
-                xs.append(xs[-1] + need_px * PX_TO_X)
+            r_units = rad_px * PX_TO_X
+            pad_units = MIN_GAP_PX * PX_TO_X
+            
+            def pack_circles_spiral(radii, pad=0.0, angle_step=0.35, r_step=0.6, max_iter=25000):
+                radii = list(radii)
+                n = len(radii)
+                if n == 0:
+                    return []
+            
+                placed = [(0.0, 0.0)]
+                for i in range(1, n):
+                    ri = radii[i]
+                    t = 0.0
+                    rr = 0.0
+                    found = False
+            
+                    for _ in range(max_iter):
+                        x = rr * np.cos(t)
+                        y = rr * np.sin(t)
+            
+                        ok = True
+                        for (xj, yj), rj in zip(placed, radii[:i]):
+                            dx = x - xj
+                            dy = y - yj
+                            if (dx*dx + dy*dy) < (ri + rj + pad) ** 2:
+                                ok = False
+                                break
+            
+                        if ok:
+                            placed.append((x, y))
+                            found = True
+                            break
+            
+                        t += angle_step
+                        rr += r_step * angle_step
+            
+                    if not found:
+                        placed.append((rr + ri + pad, 0.0))
+            
+                return placed
+            
+            n = len(agg)
+            
+            if n <= 7:
+                # LINHA (como tinhas, mas com base no raio real)
+                xs = [0.0]
+                for i in range(1, n):
+                    xs.append(xs[-1] + (r_units[i - 1] + r_units[i] + pad_units))
+                ys = [0.0] * n
+            else:
+                # NUVEM (circle packing)
+                order = np.argsort(-r_units)          # maior -> menor
+                r_sorted = r_units[order]
+                pts_sorted = pack_circles_spiral(r_sorted, pad=pad_units)
+            
+                pts = [None] * n
+                for k, idx_orig in enumerate(order):
+                    pts[idx_orig] = pts_sorted[k]
+            
+                xs = [p[0] for p in pts]
+                ys = [p[1] for p in pts]
             
             agg["x"] = xs
+            agg["y"] = ys
 
-            sizes = agg["Abundância média (N/52)"].astype(float).values
-            max_size = float(max(sizes)) if len(sizes) else 1.0
-            sizeref = (2.0 * max_size) / (MAX_BUBBLE_PX ** 2) if max_size > 0 else 1.0
-            
+        
             # =========================
             # Imagens por espécie
             # =========================
