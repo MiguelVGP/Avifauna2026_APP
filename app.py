@@ -684,22 +684,27 @@ elif section == "🫧 Bubble — Top espécies":
             )
 
             # =========================
-            # Layout + sizing consistentes
+            # Layout + sizing consistentes (DIÂMETRO proporcional ao valor)
             # =========================
-            MAX_BUBBLE_PX = 170  # controla o tamanho máximo visual
-            PX_TO_X = 0.03       # conversão px -> unidades no eixo
-            MIN_GAP_PX = 32     # espaçamento mínimo
-
+            MAX_DIAM_PX = 220   # bolha maior (aumenta para 260/300 se quiseres)
+            PX_TO_X = 0.03      # px -> unidades do eixo
+            MIN_GAP_PX = 32     # espaço entre bolhas (aumenta para mais espaço)
+            
             sizes = agg["Abundância média (N/52)"].astype(float).values
             max_size = float(np.max(sizes)) if len(sizes) else 1.0
-            sizeref = (2.0 * max_size) / (MAX_BUBBLE_PX ** 2) if max_size > 0 else 1.0
-
+            
+            # sizeref para sizemode="diameter"
+            sizeref = (max_size / MAX_DIAM_PX) if max_size > 0 else 1.0
+            
             size_vals = np.maximum(sizes, 0)
+            
+            # >>> DIÂMETRO em px (não sqrt) porque vamos usar sizemode="diameter"
             diam_px = (size_vals / sizeref) if sizeref > 0 else np.zeros_like(size_vals)
             rad_px = diam_px / 2.0
-
+            
             r_units = rad_px * PX_TO_X
             pad_units = MIN_GAP_PX * PX_TO_X
+
 
             def pack_circles_spiral(radii, pad=0.0, angle_step=0.35, r_step=0.6, max_iter=25000):
                 radii = list(radii)
@@ -791,18 +796,13 @@ elif section == "🫧 Bubble — Top espécies":
                         "Total indivíduos: %{customdata[2]:.0f}<extra></extra>"
                     ),
                     customdata=agg[["Espécie", "Abundância média (N/52)", "Total indivíduos"]].values,
-                    # diâmetro proporcional ao valor
-                    MAX_DIAM_PX = 220  # aumenta se quiseres bolhas maiores
-                    max_size = float(agg["Abundância média (N/52)"].max()) if len(agg) else 1.0
-                    sizeref = (max_size / MAX_DIAM_PX) if max_size > 0 else 1.0
-                    
                     marker=dict(
                         size=agg["Abundância média (N/52)"],
                         sizemode="diameter",
                         sizeref=sizeref,
-                        sizemin=22,          # mínimo visual (ajusta)
+                        sizemin=22,
                         color=marker_colors,
-                        line=dict(color="black", width=2.5),  # <<< contorno sempre
+                        line=dict(color="black", width=2.5),
                         opacity=1.0,
                     ),
                 )
