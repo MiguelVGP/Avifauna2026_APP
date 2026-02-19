@@ -688,7 +688,7 @@ elif section == "🫧 Bubble — Top espécies":
             # =========================
             MAX_DIAM_PX = 220   # bolha maior (aumenta para 260/300 se quiseres)
             PX_TO_X = 0.03      # px -> unidades do eixo
-            MIN_GAP_PX = 54    # espaço entre bolhas (aumenta para mais espaço)
+            MIN_GAP_PX = 57    # espaço entre bolhas (aumenta para mais espaço)
             
             sizes = agg["Abundância média (N/52)"].astype(float).values
             max_size = float(np.max(sizes)) if len(sizes) else 1.0
