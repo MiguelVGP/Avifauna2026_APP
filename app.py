@@ -597,6 +597,8 @@ elif section == "🫧 Bubble — Top espécies":
 
     import base64
     from PIL import Image, ImageDraw
+    import numpy as np
+    import plotly.graph_objects as go
 
     # =========================
     # Helper: imagem circular
@@ -681,33 +683,24 @@ elif section == "🫧 Bubble — Top espécies":
                 .reset_index(drop=True)
             )
 
-            # --- Layout fixo: o "canvas" não muda com Top N
-            MAX_SLOTS = 18
-            GAP = 3.8
-            MAX_BUBBLE_PX = 170
-            PAD_X = 1.2
-            
-            import numpy as np
-            
-            n = len(agg)
-            
-            # 1) sizeref
+            # =========================
+            # Layout + sizing consistentes
+            # =========================
+            MAX_BUBBLE_PX = 170  # controla o tamanho máximo visual
+            PX_TO_X = 0.03       # conversão px -> unidades no eixo
+            MIN_GAP_PX = 18      # espaçamento mínimo
+
             sizes = agg["Abundância média (N/52)"].astype(float).values
             max_size = float(np.max(sizes)) if len(sizes) else 1.0
             sizeref = (2.0 * max_size) / (MAX_BUBBLE_PX ** 2) if max_size > 0 else 1.0
-            
-            # 2) raios em px
+
             size_vals = np.maximum(sizes, 0)
             diam_px = np.sqrt(size_vals / sizeref) if sizeref > 0 else np.zeros_like(size_vals)
             rad_px = diam_px / 2.0
-            
-            # 3) Layout: linha (N<=7) | nuvem (N>7)
-            PX_TO_X = 0.03
-            MIN_GAP_PX = 18
-            
+
             r_units = rad_px * PX_TO_X
             pad_units = MIN_GAP_PX * PX_TO_X
-            
+
             def pack_circles_spiral(radii, pad=0.0, angle_step=0.35, r_step=0.6, max_iter=25000):
                 radii = list(radii)
                 n = len(radii)
@@ -726,7 +719,7 @@ elif section == "🫧 Bubble — Top espécies":
                         for (xj, yj), rj in zip(placed, radii[:i]):
                             dx = x - xj
                             dy = y - yj
-                            if (dx*dx + dy*dy) < (ri + rj + pad) ** 2:
+                            if (dx * dx + dy * dy) < (ri + rj + pad) ** 2:
                                 ok = False
                                 break
                         if ok:
@@ -738,7 +731,9 @@ elif section == "🫧 Bubble — Top espécies":
                     if not found:
                         placed.append((rr + ri + pad, 0.0))
                 return placed
-            
+
+            n = len(agg)
+
             if n <= 5:
                 xs = [0.0]
                 for i in range(1, n):
@@ -748,18 +743,17 @@ elif section == "🫧 Bubble — Top espécies":
                 order = np.argsort(-r_units)  # maior->menor
                 r_sorted = r_units[order]
                 pts_sorted = pack_circles_spiral(r_sorted, pad=pad_units)
-            
+
                 pts = [None] * n
                 for k, idx_orig in enumerate(order):
                     pts[idx_orig] = pts_sorted[k]
-            
+
                 xs = [p[0] for p in pts]
                 ys = [p[1] for p in pts]
-            
-            # aplicar ao dataframe
+
             agg["x"] = xs
             agg["y"] = ys
-
+            agg["r_units"] = r_units  # <<< IMPORTANTE: guardar raio em unidades do eixo
 
             # =========================
             # Imagens por espécie
@@ -779,7 +773,7 @@ elif section == "🫧 Bubble — Top espécies":
             # =========================
             marker_colors = []
             for _, r in agg.iterrows():
-                if r["Espécie"].lower().strip() in species_images:
+                if str(r["Espécie"]).lower().strip() in species_images:
                     marker_colors.append("rgba(240,240,240,0.85)")  # cinzento claro
                 else:
                     marker_colors.append("#BFF7C9")  # verde claro
@@ -796,23 +790,21 @@ elif section == "🫧 Bubble — Top espécies":
                         "Abundância média (N/52): %{customdata[1]:.2f}<br>"
                         "Total indivíduos: %{customdata[2]:.0f}<extra></extra>"
                     ),
-                    customdata=agg[
-                        ["Espécie", "Abundância média (N/52)", "Total indivíduos"]
-                    ].values,
+                    customdata=agg[["Espécie", "Abundância média (N/52)", "Total indivíduos"]].values,
                     marker=dict(
                         size=agg["Abundância média (N/52)"],
                         sizemode="area",
                         sizeref=sizeref,
                         sizemin=60,
                         color=marker_colors,
-                        line=dict(color="black", width=2.5),
+                        line=dict(color="black", width=2.5),  # <<< contorno sempre
                         opacity=1.0,
                     ),
                 )
             )
 
             # =========================
-            # Imagens + texto
+            # Imagens + texto (imagem enche sempre a bolha)
             # =========================
             for _, r in agg.iterrows():
                 especie = str(r["Espécie"])
@@ -823,11 +815,9 @@ elif section == "🫧 Bubble — Top espécies":
 
                 has_image = especie_key in species_images
 
-                # imagem proporcional ao tamanho da bolha
-                # imagem com tamanho fixo (em unidades do eixo) para encher o círculo visualmente
-                # (ajusta o 0.92 se quiseres mais/menos "fill")
-                img_size = GAP * 0.92
-
+                # <<< tamanho da imagem baseado no diâmetro REAL da bolha (unidades do eixo)
+                r_u = float(r["r_units"])
+                img_size = max(2.0 * r_u * 0.98, 0.55)  # 0.98 "enche"; 0.55 evita desaparecer
 
                 if has_image:
                     fig.add_layout_image(
@@ -860,19 +850,26 @@ elif section == "🫧 Bubble — Top espécies":
                     borderwidth=1 if has_image else 0,
                     borderpad=5 if has_image else 0,
                 )
-           # depois de definires agg["x"] e agg["y"]
+
+            # limites + escala 1:1 (para círculos “perfeitos”)
             x_min = float(agg["x"].min()) - 2.0
             x_max = float(agg["x"].max()) + 2.0
             y_min = float(agg["y"].min()) - 2.0
             y_max = float(agg["y"].max()) + 2.0
-            
+
             fig.update_layout(
                 title=f"Top {top_n} — Abundância média (N/52) — {local_plot}",
                 height=560,
                 margin=dict(l=10, r=10, t=70, b=10),
                 showlegend=False,
                 xaxis=dict(visible=False, range=[x_min, x_max], fixedrange=True),
-                yaxis=dict(visible=False, range=[y_min, y_max], fixedrange=True),
+                yaxis=dict(
+                    visible=False,
+                    range=[y_min, y_max],
+                    fixedrange=True,
+                    scaleanchor="x",  # <<< mantém proporções
+                    scaleratio=1,
+                ),
             )
 
             st.plotly_chart(fig, width="stretch")
