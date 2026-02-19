@@ -686,8 +686,8 @@ elif section == "🫧 Bubble — Top espécies":
             # =========================
             # Layout + sizing consistentes (DIÂMETRO proporcional ao valor)
             # =========================
-            MAX_DIAM_PX = 220   # bolha maior (aumenta para 260/300 se quiseres)
-            PX_TO_X = 0.03      # px -> unidades do eixo
+            MAX_DIAM_PX = 280   # bolha maior (aumenta para 260/300 se quiseres)
+            PX_TO_X = 0.025     # px -> unidades do eixo
             MIN_GAP_PX = 57    # espaço entre bolhas (aumenta para mais espaço)
             
             sizes = agg["Abundância média (N/52)"].astype(float).values
@@ -857,10 +857,12 @@ elif section == "🫧 Bubble — Top espécies":
                 )
 
             # limites + escala 1:1 (para círculos “perfeitos”)
-            x_min = float(agg["x"].min()) - 2.0
-            x_max = float(agg["x"].max()) + 2.0
-            y_min = float(agg["y"].min()) - 2.0
-            y_max = float(agg["y"].max()) + 2.0
+            PAD = 4.0
+            x_min = float(agg["x"].min()) - PAD
+            x_max = float(agg["x"].max()) + PAD
+            y_min = float(agg["y"].min()) - PAD
+            y_max = float(agg["y"].max()) + PAD
+
 
             fig.update_layout(
                 title=f"Top {top_n} — Abundância média (N/52) — {local_plot}",
