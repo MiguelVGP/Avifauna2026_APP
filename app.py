@@ -688,7 +688,7 @@ elif section == "🫧 Bubble — Top espécies":
             # =========================
             MAX_BUBBLE_PX = 170  # controla o tamanho máximo visual
             PX_TO_X = 0.03       # conversão px -> unidades no eixo
-            MIN_GAP_PX = 18      # espaçamento mínimo
+            MIN_GAP_PX = 24     # espaçamento mínimo
 
             sizes = agg["Abundância média (N/52)"].astype(float).values
             max_size = float(np.max(sizes)) if len(sizes) else 1.0
