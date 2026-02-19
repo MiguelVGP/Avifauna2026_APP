@@ -761,6 +761,34 @@ elif section == "🫧 Bubble — Top espécies":
             agg["r_units"] = r_units  # <<< IMPORTANTE: guardar raio em unidades do eixo
 
             # =========================
+            # NORMALIZAR CANVAS (fixa a "escala" do eixo)
+            # =========================
+            TARGET_SPAN = 18.0   # largura/altura total do canvas em unidades do eixo (aumenta p/ mais "área")
+            MARGIN = 0.6         # margem extra (em unidades) para não cortar contornos
+            
+            # bounding box real incluindo raios
+            xmin = float((agg["x"] - agg["r_units"]).min())
+            xmax = float((agg["x"] + agg["r_units"]).max())
+            ymin = float((agg["y"] - agg["r_units"]).min())
+            ymax = float((agg["y"] + agg["r_units"]).max())
+            
+            span = max(xmax - xmin, ymax - ymin)
+            span = max(span, 1e-6)
+            
+            # escala para caber num span fixo (TARGET_SPAN)
+            scale = (TARGET_SPAN - 2 * MARGIN) / span
+            
+            # aplicar escala a posições e raios (isto é o “segredo”)
+            agg["x"] *= scale
+            agg["y"] *= scale
+            agg["r_units"] *= scale
+            
+            # ranges fixos e centrados (mais estável)
+            x_min, x_max = -TARGET_SPAN / 2, TARGET_SPAN / 2
+            y_min, y_max = -TARGET_SPAN / 2, TARGET_SPAN / 2
+
+
+            # =========================
             # Imagens por espécie
             # =========================
             PASSER_IMG_PATH = "assets/images/passer_domesticus.jpg"
