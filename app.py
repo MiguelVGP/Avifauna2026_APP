@@ -590,7 +590,7 @@ elif section == "📊 Abundância média":
                 title=f"Abundância média por espécie — {local_plot}",
             )
             fig.update_layout(height=720, margin=dict(l=20, r=20, t=60, b=20))
-            st.plotly_chart(fig, width="stretch")
+            st.plotly_chart(fig, use_container_width=True)
 
 elif section == "🫧 Bubble — Top espécies":
     st.subheader("🫧 Bubble — Top espécies")
