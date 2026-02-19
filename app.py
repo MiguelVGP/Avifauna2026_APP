@@ -850,7 +850,7 @@ elif section == "🫧 Bubble — Top espécies":
 
                 # <<< tamanho da imagem baseado no diâmetro REAL da bolha (unidades do eixo)
                 r_u = float(r["r_units"])
-                img_size = max(2.0 * r_u * 1.05, 0.55)  # 0.98 "enche"; 0.55 evita desaparecer
+                img_size = max(2.0 * r_u * 1.12, 0.55)  # 0.98 "enche"; 0.55 evita desaparecer
 
                 if has_image:
                     fig.add_layout_image(
