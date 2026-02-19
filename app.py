@@ -864,7 +864,7 @@ elif section == "🫧 Bubble — Top espécies":
 
             fig.update_layout(
                 title=f"Top {top_n} — Abundância média (N/52) — {local_plot}",
-                height=560,
+                height=820,
                 margin=dict(l=10, r=10, t=70, b=10),
                 showlegend=False,
                 xaxis=dict(visible=False, range=[x_min, x_max], fixedrange=True),
