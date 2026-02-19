@@ -695,7 +695,7 @@ elif section == "🫧 Bubble — Top espécies":
             sizeref = (2.0 * max_size) / (MAX_BUBBLE_PX ** 2) if max_size > 0 else 1.0
 
             size_vals = np.maximum(sizes, 0)
-            diam_px = np.sqrt(size_vals / sizeref) if sizeref > 0 else np.zeros_like(size_vals)
+            diam_px = (size_vals / sizeref) if sizeref > 0 else np.zeros_like(size_vals)
             rad_px = diam_px / 2.0
 
             r_units = rad_px * PX_TO_X
@@ -791,11 +791,16 @@ elif section == "🫧 Bubble — Top espécies":
                         "Total indivíduos: %{customdata[2]:.0f}<extra></extra>"
                     ),
                     customdata=agg[["Espécie", "Abundância média (N/52)", "Total indivíduos"]].values,
+                    # diâmetro proporcional ao valor
+                    MAX_DIAM_PX = 220  # aumenta se quiseres bolhas maiores
+                    max_size = float(agg["Abundância média (N/52)"].max()) if len(agg) else 1.0
+                    sizeref = (max_size / MAX_DIAM_PX) if max_size > 0 else 1.0
+                    
                     marker=dict(
                         size=agg["Abundância média (N/52)"],
-                        sizemode="area",
+                        sizemode="diameter",
                         sizeref=sizeref,
-                        sizemin=60,
+                        sizemin=22,          # mínimo visual (ajusta)
                         color=marker_colors,
                         line=dict(color="black", width=2.5),  # <<< contorno sempre
                         opacity=1.0,
