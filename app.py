@@ -599,42 +599,25 @@ elif section == "🫧 Bubble — Top espécies":
     from PIL import Image, ImageDraw
     import numpy as np
     import plotly.graph_objects as go
-    from pathlib import Path   # ⭐ FALTAVA ISTO
+    from pathlib import Path  # ✅ NECESSÁRIO (corrige NameError)
 
     # =========================
     # Helper: imagem circular
     # =========================
-    def image_to_circular_data_uri(img_path: Path, out_px: int = 420) -> str:
+    def image_to_circular_data_uri(img_path: str, out_px: int = 360) -> str:
         im = Image.open(img_path).convert("RGBA")
         im = im.resize((out_px, out_px), Image.LANCZOS)
 
         mask = Image.new("L", (out_px, out_px), 0)
         draw = ImageDraw.Draw(mask)
         draw.ellipse((0, 0, out_px - 1, out_px - 1), fill=255)
+
         im.putalpha(mask)
 
         buf = io.BytesIO()
         im.save(buf, format="PNG")
-        return "data:image/png;base64," + base64.b64encode(buf.getvalue()).decode()
-
-    # =========================
-    # Imagens disponíveis (ADD AQUI NOVAS ESPÉCIES)
-    # =========================
-    ASSETS_IMG = Path("assets/images")
-
-    species_images_paths = {
-        "Passer domesticus": ASSETS_IMG / "passer_domesticus.jpg",
-        "Columba livia": ASSETS_IMG / "columba_livia.jpg",
-    }
-
-    # try/except global → evita crashes no deploy
-    species_images = {}
-    for sp, path in species_images_paths.items():
-        try:
-            if path.exists():
-                species_images[sp.lower()] = image_to_circular_data_uri(path)
-        except Exception:
-            pass
+        b64 = base64.b64encode(buf.getvalue()).decode("utf-8")
+        return f"data:image/png;base64,{b64}"
 
     # =========================
     # UI state
@@ -646,14 +629,22 @@ elif section == "🫧 Bubble — Top espécies":
 
     locais_plot = ["Total"] + FIXED_LOCAIS
 
-    with st.form("form_bubble_abund"):
+    with st.form("form_bubble_abund", clear_on_submit=False):
         c1, c2 = st.columns([2, 1])
         with c1:
-            local_plot = st.selectbox("Local", locais_plot,
-                                      index=locais_plot.index(st.session_state.bb_local))
+            local_plot = st.selectbox(
+                "Local",
+                locais_plot,
+                index=locais_plot.index(st.session_state.bb_local),
+            )
         with c2:
-            top_n = st.slider("Top N espécies", 3, 18,
-                              int(st.session_state.bb_topn))
+            top_n = st.slider(
+                "Top N espécies",
+                min_value=3,
+                max_value=18,
+                value=int(st.session_state.bb_topn),
+                step=1,
+            )
 
         if st.form_submit_button("Aplicar"):
             st.session_state.bb_local = local_plot
@@ -665,143 +656,287 @@ elif section == "🫧 Bubble — Top espécies":
     # =========================
     # Dados
     # =========================
-    base = df_amostras[[LOCAL_COL, SPEC_COL, INDIV_COL]].copy()
-    base[LOCAL_COL] = base[LOCAL_COL].fillna("").astype(str).str.strip()
-    base[SPEC_COL] = base[SPEC_COL].fillna("").astype(str).str.strip()
-    base[INDIV_COL] = pd.to_numeric(base[INDIV_COL], errors="coerce").fillna(0)
-
-    if local_plot != "Total":
-        base = base[base[LOCAL_COL] == local_plot]
-
-    agg = (
-        base.groupby(SPEC_COL)[INDIV_COL]
-        .sum()
-        .reset_index()
-        .rename(columns={SPEC_COL: "Espécie", INDIV_COL: "Total indivíduos"})
-    )
-
-    agg["Abundância média (N/52)"] = agg["Total indivíduos"] / 52.0
-    agg = agg.sort_values("Abundância média (N/52)", ascending=False).head(top_n)
-
-    # =========================
-    # Sizing consistente
-    # =========================
-    MAX_DIAM_PX = 280
-    PX_TO_X = 0.025
-    MIN_GAP_PX = 57
-    SIZEMIN_PX = 22
-    OUTLINE_W = 2.5
-
-    sizes = agg["Abundância média (N/52)"].values
-    sizeref = max(sizes) / MAX_DIAM_PX if len(sizes) else 1
-
-    diam_px = np.maximum(sizes / sizeref, SIZEMIN_PX)
-    r_units = (diam_px / 2) * PX_TO_X
-
-    # layout simples (linha para n<=5)
-    xs = [0]
-    for i in range(1, len(r_units)):
-        xs.append(xs[-1] + r_units[i-1] + r_units[i] + MIN_GAP_PX * PX_TO_X)
-    ys = [0] * len(xs)
-
-    agg["x"], agg["y"], agg["r_units"] = xs, ys, r_units
-
-    # =========================
-    # Plot base
-    # =========================
-    fig = go.Figure()
-
-    colors = [
-        "rgba(0,0,0,0)" if s.lower() in species_images else "#BFF7C9"
-        for s in agg["Espécie"]
-    ]
-
-    fig.add_trace(go.Scatter(
-        x=agg["x"], y=agg["y"], mode="markers",
-        marker=dict(size=sizes, sizemode="diameter", sizeref=sizeref,
-                    sizemin=SIZEMIN_PX, color=colors,
-                    line=dict(width=0))
-    ))
-
-    # =========================
-    # Imagens + contornos
-    # =========================
-    for _, r in agg.iterrows():
-        sp = r["Espécie"].lower()
-        x, y, ru = float(r["x"]), float(r["y"]), float(r["r_units"])
-
-        if sp in species_images:
-            fig.add_layout_image(dict(
-                source=species_images[sp],
-                xref="x", yref="y", x=x, y=y,
-                sizex=2*ru, sizey=2*ru,
-                xanchor="center", yanchor="middle",
-                layer="below"
-            ))
-
-        fig.add_shape(type="circle",
-            x0=x-ru, x1=x+ru, y0=y-ru, y1=y+ru,
-            xref="x", yref="y",
-            line=dict(color="black", width=OUTLINE_W)
-        )
-
-    fig.update_layout(height=820, showlegend=False,
-        xaxis=dict(visible=False), yaxis=dict(visible=False, scaleanchor="x"))
-
-    st.plotly_chart(fig, use_container_width=True)
-
-elif section == "📄 PDF Lista de espécies":
-    st.subheader("📄 PDF Lista de espécies")
-
-    if "out_pdf_local" not in st.session_state:
-        st.session_state.out_pdf_local = "Total"
-
-    locais_pdf = ["Total"] + FIXED_LOCAIS
-
-    with st.form("form_pdf", clear_on_submit=False):
-        local_sel_pdf = st.selectbox(
-            "Local",
-            locais_pdf,
-            index=locais_pdf.index(st.session_state.out_pdf_local),
-            key="pdf_local_sel_total_form",
-        )
-        submitted_pdf = st.form_submit_button("Gerar / Atualizar")
-        if submitted_pdf:
-            st.session_state.out_pdf_local = local_sel_pdf
-
-    local_sel_pdf = st.session_state.out_pdf_local
-
     if df_amostras.empty or any(c not in df_amostras.columns for c in [LOCAL_COL, SPEC_COL, INDIV_COL]):
-        st.info("Faltam colunas necessárias para gerar a lista.")
+        st.info("Faltam colunas necessárias para gerar o bubble output.")
     else:
         base = df_amostras[[LOCAL_COL, SPEC_COL, INDIV_COL]].copy()
         base[LOCAL_COL] = base[LOCAL_COL].fillna("").astype(str).str.strip()
         base[SPEC_COL] = base[SPEC_COL].fillna("").astype(str).str.strip()
         base[INDIV_COL] = pd.to_numeric(base[INDIV_COL], errors="coerce").fillna(0)
 
-        df_loc = base.copy() if local_sel_pdf == "Total" else base[base[LOCAL_COL] == local_sel_pdf]
+        if local_plot != "Total":
+            base = base[base[LOCAL_COL] == local_plot]
 
-        if df_loc.empty:
+        if base.empty:
             st.warning("Sem registos para este local.")
         else:
-            species_table = (
-                df_loc.groupby(SPEC_COL, dropna=False)[INDIV_COL]
+            agg = (
+                base.groupby(SPEC_COL, dropna=False)[INDIV_COL]
                 .sum()
                 .reset_index()
-                .rename(columns={SPEC_COL: "Espécie", INDIV_COL: "Nº indivíduos"})
-                .sort_values(["Nº indivíduos", "Espécie"], ascending=[False, True])
+                .rename(columns={SPEC_COL: "Espécie", INDIV_COL: "Total indivíduos"})
+            )
+
+            agg["Abundância média (N/52)"] = agg["Total indivíduos"] / 52.0
+            agg = (
+                agg.sort_values("Abundância média (N/52)", ascending=False)
+                .head(top_n)
                 .reset_index(drop=True)
             )
 
-            pdf_bytes = build_species_list_pdf(local_sel_pdf, species_table)
+            # =========================
+            # Layout + sizing consistentes
+            # =========================
+            MAX_DIAM_PX = 280   # bolha maior
+            PX_TO_X = 0.025     # px -> unidades do eixo (mantém igual ao teu)
+            MIN_GAP_PX = 57     # espaço entre bolhas
+            SIZEMIN_PX = 22     # TEM de ser igual a marker.sizemin
+            OUTLINE_W = 2.5     # espessura fixa do contorno (px)
 
-            st.download_button(
-                "⬇️ Download PDF",
-                data=pdf_bytes,
-                file_name=f"lista_especies_{local_sel_pdf.replace(' ', '_')}_{date.today().strftime('%Y%m%d')}.pdf",
-                mime="application/pdf",
-                key=f"download_pdf_{local_sel_pdf}",
+            sizes = agg["Abundância média (N/52)"].astype(float).values
+            max_size = float(np.max(sizes)) if len(sizes) else 1.0
+
+            # sizeref para sizemode="diameter"
+            sizeref = (max_size / MAX_DIAM_PX) if max_size > 0 else 1.0
+            size_vals = np.maximum(sizes, 0)
+
+            # diâmetro "raw" em px (antes de sizemin)
+            diam_px_raw = (size_vals / sizeref) if sizeref > 0 else np.zeros_like(size_vals)
+
+            # ✅ replicar a regra do Plotly (sizemin em px)
+            diam_px_eff = np.maximum(diam_px_raw, SIZEMIN_PX)
+            rad_px_eff = diam_px_eff / 2.0
+
+            # raio em unidades do eixo (para packing + shapes + imagens)
+            r_units = rad_px_eff * PX_TO_X
+            pad_units = MIN_GAP_PX * PX_TO_X
+
+            def pack_circles_spiral(radii, pad=0.0, angle_step=0.35, r_step=0.6, max_iter=25000):
+                radii = list(radii)
+                n = len(radii)
+                if n == 0:
+                    return []
+                placed = [(0.0, 0.0)]
+                for i in range(1, n):
+                    ri = radii[i]
+                    t = 0.0
+                    rr = 0.0
+                    found = False
+                    for _ in range(max_iter):
+                        x = rr * np.cos(t)
+                        y = rr * np.sin(t)
+                        ok = True
+                        for (xj, yj), rj in zip(placed, radii[:i]):
+                            dx = x - xj
+                            dy = y - yj
+                            if (dx * dx + dy * dy) < (ri + rj + pad) ** 2:
+                                ok = False
+                                break
+                        if ok:
+                            placed.append((x, y))
+                            found = True
+                            break
+                        t += angle_step
+                        rr += r_step * angle_step
+                    if not found:
+                        placed.append((rr + ri + pad, 0.0))
+                return placed
+
+            n = len(agg)
+
+            if n <= 5:
+                xs = [0.0]
+                for i in range(1, n):
+                    xs.append(xs[-1] + (r_units[i - 1] + r_units[i] + pad_units))
+                ys = [0.0] * n
+            else:
+                order = np.argsort(-r_units)  # maior->menor
+                r_sorted = r_units[order]
+                pts_sorted = pack_circles_spiral(r_sorted, pad=pad_units)
+
+                pts = [None] * n
+                for k, idx_orig in enumerate(order):
+                    pts[idx_orig] = pts_sorted[k]
+
+                xs = [p[0] for p in pts]
+                ys = [p[1] for p in pts]
+
+            agg["x"] = xs
+            agg["y"] = ys
+            agg["r_units"] = r_units
+
+            # =========================
+            # NORMALIZAR CANVAS + CENTRAR
+            # =========================
+            TARGET_SPAN = 18.0
+            MARGIN = 0.6
+
+            xmin = float((agg["x"] - agg["r_units"]).min())
+            xmax = float((agg["x"] + agg["r_units"]).max())
+            ymin = float((agg["y"] - agg["r_units"]).min())
+            ymax = float((agg["y"] + agg["r_units"]).max())
+
+            span = max(xmax - xmin, ymax - ymin)
+            span = max(span, 1e-6)
+
+            scale = (TARGET_SPAN - 2 * MARGIN) / span
+
+            agg["x"] *= scale
+            agg["y"] *= scale
+            agg["r_units"] *= scale
+
+            # centrar
+            xmin = float((agg["x"] - agg["r_units"]).min())
+            xmax = float((agg["x"] + agg["r_units"]).max())
+            ymin = float((agg["y"] - agg["r_units"]).min())
+            ymax = float((agg["y"] + agg["r_units"]).max())
+
+            cx = (xmin + xmax) / 2.0
+            cy = (ymin + ymax) / 2.0
+            agg["x"] = agg["x"] - cx
+            agg["y"] = agg["y"] - cy
+
+            x_min, x_max = -TARGET_SPAN / 2, TARGET_SPAN / 2
+            y_min, y_max = -TARGET_SPAN / 2, TARGET_SPAN / 2
+
+            # =========================
+            # Imagens por espécie (ADD AQUI)
+            # =========================
+            ASSETS_IMG = Path("assets/images")
+
+            species_images = {}
+
+            # Passer domesticus
+            try:
+                passer_path = ASSETS_IMG / "passer_domesticus.jpg"
+                species_images["passer domesticus"] = image_to_circular_data_uri(str(passer_path), out_px=420)
+            except Exception:
+                pass
+
+            # Columba livia  ✅ (novo)
+            try:
+                columba_path = ASSETS_IMG / "columba_livia.jpg"   # <-- coloca aqui o ficheiro
+                species_images["columba livia"] = image_to_circular_data_uri(str(columba_path), out_px=420)
+            except Exception:
+                pass
+
+            # =========================
+            # Cores por bolha
+            # =========================
+            marker_colors = []
+            for _, r in agg.iterrows():
+                has_image = str(r["Espécie"]).lower().strip() in species_images
+                marker_colors.append("rgba(0,0,0,0)" if has_image else "#BFF7C9")
+
+            fig = go.Figure()
+
+            # =========================
+            # Marcadores (SEM contorno; contorno será shapes)
+            # =========================
+            fig.add_trace(
+                go.Scatter(
+                    x=agg["x"],
+                    y=agg["y"],
+                    mode="markers",
+                    hovertemplate=(
+                        "<b>%{customdata[0]}</b><br>"
+                        "Abundância média (N/52): %{customdata[1]:.2f}<br>"
+                        "Total indivíduos: %{customdata[2]:.0f}<extra></extra>"
+                    ),
+                    customdata=agg[["Espécie", "Abundância média (N/52)", "Total indivíduos"]].values,
+                    marker=dict(
+                        size=agg["Abundância média (N/52)"],
+                        sizemode="diameter",
+                        sizeref=sizeref,
+                        sizemin=SIZEMIN_PX,
+                        color=marker_colors,
+                        line=dict(color="rgba(0,0,0,0)", width=0),  # ✅ contorno via shapes
+                        opacity=1.0,
+                    ),
+                )
             )
+
+            # =========================
+            # Imagens + texto
+            # =========================
+            for _, r in agg.iterrows():
+                especie = str(r["Espécie"])
+                especie_key = especie.lower().strip()
+                x = float(r["x"])
+                y = float(r["y"])
+                abund = float(r["Abundância média (N/52)"])
+                has_image = especie_key in species_images
+
+                # ✅ imagem enche a bolha: usa o DIÂMETRO REAL em unidades do eixo
+                r_u = float(r["r_units"])
+                img_size = max(2.0 * r_u, 0.55)
+
+                if has_image:
+                    fig.add_layout_image(
+                        dict(
+                            source=species_images[especie_key],
+                            xref="x",
+                            yref="y",
+                            x=x,
+                            y=y,
+                            xanchor="center",
+                            yanchor="middle",
+                            sizex=img_size,
+                            sizey=img_size,
+                            layer="below",
+                            opacity=1.0,
+                        )
+                    )
+
+                fig.add_annotation(
+                    x=x,
+                    y=y,
+                    xref="x",
+                    yref="y",
+                    text=f"<b>{especie}</b><br><b>{abund:.2f}</b>",
+                    showarrow=False,
+                    align="center",
+                    font=dict(color="black", size=16),
+                    bgcolor="rgba(255,255,255,0.55)" if has_image else "rgba(0,0,0,0)",
+                    bordercolor="rgba(0,0,0,0.35)" if has_image else "rgba(0,0,0,0)",
+                    borderwidth=1 if has_image else 0,
+                    borderpad=5 if has_image else 0,
+                )
+
+            # =========================
+            # Contornos pretos FIXOS (sempre do tamanho certo)
+            # =========================
+            for _, r in agg.iterrows():
+                x = float(r["x"])
+                y = float(r["y"])
+                r_u = float(r["r_units"])
+
+                fig.add_shape(
+                    type="circle",
+                    xref="x", yref="y",
+                    x0=x - r_u, x1=x + r_u,
+                    y0=y - r_u, y1=y + r_u,
+                    line=dict(color="black", width=OUTLINE_W),
+                    fillcolor="rgba(0,0,0,0)",
+                    layer="above",
+                )
+
+            fig.update_layout(
+                title=f"Top {top_n} — Abundância média (N/52) — {local_plot}",
+                height=820,
+                margin=dict(l=10, r=10, t=70, b=10),
+                showlegend=False,
+                xaxis=dict(visible=False, range=[x_min, x_max], fixedrange=True),
+                yaxis=dict(
+                    visible=False,
+                    range=[y_min, y_max],
+                    fixedrange=True,
+                    scaleanchor="x",
+                    scaleratio=1,
+                ),
+            )
+
+            st.plotly_chart(fig, use_container_width=True)
 
 
 elif section == "✅ Presença / Ausência":
