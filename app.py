@@ -806,10 +806,8 @@ elif section == "🫧 Bubble — Top espécies":
             # =========================
             marker_colors = []
             for _, r in agg.iterrows():
-                if str(r["Espécie"]).lower().strip() in species_images:
-                    marker_colors.append("rgba(240,240,240,0.85)")  # cinzento claro
-                else:
-                    marker_colors.append("#BFF7C9")  # verde claro
+                has_image = str(r["Espécie"]).lower().strip() in species_images
+                marker_colors.append("rgba(0,0,0,0)" if has_image else "#BFF7C9")
 
             fig = go.Figure()
 
@@ -864,7 +862,7 @@ elif section == "🫧 Bubble — Top espécies":
                             yanchor="middle",
                             sizex=img_size,
                             sizey=img_size,
-                            layer="above",
+                            layer="below",
                             opacity=1.0,
                         )
                     )
