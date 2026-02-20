@@ -684,11 +684,15 @@ elif section == "🫧 Bubble — Top espécies":
             )
 
             # =========================
-            # Layout + sizing consistentes (DIÂMETRO proporcional ao valor)
+            # Layout + sizing consistentes
             # =========================
-            MAX_DIAM_PX = 280   # bolha maior (aumenta para 260/300 se quiseres)
-            PX_TO_X = 0.025     # px -> unidades do eixo
-            MIN_GAP_PX = 57    # espaço entre bolhas (aumenta para mais espaço)
+            MAX_DIAM_PX = 280     # bolha maior
+            MIN_GAP_PX  = 57      # espaço entre bolhas
+            SIZEMIN_PX  = 22      # tem de bater com marker.sizemin
+            
+            # (vais usar o mesmo height e margins do update_layout)
+            FIG_H = 820
+            MARGINS = dict(l=10, r=10, t=70, b=10)
             
             sizes = agg["Abundância média (N/52)"].astype(float).values
             max_size = float(np.max(sizes)) if len(sizes) else 1.0
@@ -697,14 +701,24 @@ elif section == "🫧 Bubble — Top espécies":
             sizeref = (max_size / MAX_DIAM_PX) if max_size > 0 else 1.0
             
             size_vals = np.maximum(sizes, 0)
-            
-            # >>> DIÂMETRO em px (não sqrt) porque vamos usar sizemode="diameter"
             diam_px = (size_vals / sizeref) if sizeref > 0 else np.zeros_like(size_vals)
+            
+            # IMPORTANTÍSSIMO: aplicar o mesmo mínimo do marker, senão packing/imagem não batem certo
+            diam_px = np.maximum(diam_px, SIZEMIN_PX)
             rad_px = diam_px / 2.0
             
-            r_units = rad_px * PX_TO_X
-            pad_units = MIN_GAP_PX * PX_TO_X
-
+            # =========================
+            # NORMALIZAR CANVAS (fixa a "escala" do eixo)
+            # =========================
+            TARGET_SPAN = 18.0
+            MARGIN = 0.6
+            
+            # converter px -> unidades do eixo, usando a altura útil do plot
+            plot_px = max(200, FIG_H - (MARGINS["t"] + MARGINS["b"]) - 30)  # 30 ~ folga do título
+            units_per_px = (TARGET_SPAN - 2 * MARGIN) / plot_px
+            
+            r_units = rad_px * units_per_px
+            pad_units = MIN_GAP_PX * units_per_px
 
             def pack_circles_spiral(radii, pad=0.0, angle_step=0.35, r_step=0.6, max_iter=25000):
                 radii = list(radii)
@@ -860,9 +874,11 @@ elif section == "🫧 Bubble — Top espécies":
 
                 has_image = especie_key in species_images
 
-                # <<< tamanho da imagem baseado no diâmetro REAL da bolha (unidades do eixo)
                 r_u = float(r["r_units"])
-                img_size = max(2.0 * r_u * 0.98, 0.55)  # 0.98 "enche"; 0.55 evita desaparecer
+                diam_u = 2.0 * r_u
+                
+                # 1.02 dá uma micro-sobra para garantir “encher” sem ficar visivelmente maior
+                img_size = diam_u * 1.02
 
                 if has_image:
                     fig.add_layout_image(
@@ -909,17 +925,17 @@ elif section == "🫧 Bubble — Top espécies":
                 height=820,
                 margin=dict(l=10, r=10, t=70, b=10),
                 showlegend=False,
-                xaxis=dict(visible=False, range=[x_min, x_max], fixedrange=True),
+                xaxis=dict(visible=False, range=[-TARGET_SPAN/2, TARGET_SPAN/2], fixedrange=True),
                 yaxis=dict(
                     visible=False,
-                    range=[y_min, y_max],
+                    range=[-TARGET_SPAN/2, TARGET_SPAN/2],
                     fixedrange=True,
-                    scaleanchor="x",  # <<< mantém proporções
+                    scaleanchor="x",
                     scaleratio=1,
                 ),
             )
 
-            st.plotly_chart(fig, width="stretch")
+            st.plotly_chart(fig, use_container_width=True)
 
 
 elif section == "📄 PDF Lista de espécies":
