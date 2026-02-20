@@ -686,39 +686,29 @@ elif section == "🫧 Bubble — Top espécies":
             # =========================
             # Layout + sizing consistentes
             # =========================
-            MAX_DIAM_PX = 280     # bolha maior
-            MIN_GAP_PX  = 57      # espaço entre bolhas
-            SIZEMIN_PX  = 22      # tem de bater com marker.sizemin
-            
-            # (vais usar o mesmo height e margins do update_layout)
-            FIG_H = 820
-            MARGINS = dict(l=10, r=10, t=70, b=10)
-            
+            MAX_DIAM_PX = 280   # bolha maior
+            PX_TO_X = 0.025     # px -> unidades do eixo (mantém igual ao teu)
+            MIN_GAP_PX = 57     # espaço entre bolhas
+            SIZEMIN_PX = 22     # TEM de ser igual a marker.sizemin
+            OUTLINE_W = 2.5     # espessura fixa do contorno (px)
+
             sizes = agg["Abundância média (N/52)"].astype(float).values
             max_size = float(np.max(sizes)) if len(sizes) else 1.0
-            
+
             # sizeref para sizemode="diameter"
             sizeref = (max_size / MAX_DIAM_PX) if max_size > 0 else 1.0
-            
             size_vals = np.maximum(sizes, 0)
-            diam_px = (size_vals / sizeref) if sizeref > 0 else np.zeros_like(size_vals)
-            
-            # IMPORTANTÍSSIMO: aplicar o mesmo mínimo do marker, senão packing/imagem não batem certo
-            diam_px = np.maximum(diam_px, SIZEMIN_PX)
-            rad_px = diam_px / 2.0
-            
-            # =========================
-            # NORMALIZAR CANVAS (fixa a "escala" do eixo)
-            # =========================
-            TARGET_SPAN = 18.0
-            MARGIN = 0.6
-            
-            # converter px -> unidades do eixo, usando a altura útil do plot
-            plot_px = max(200, FIG_H - (MARGINS["t"] + MARGINS["b"]) - 30)  # 30 ~ folga do título
-            units_per_px = (TARGET_SPAN - 2 * MARGIN) / plot_px
-            
-            r_units = rad_px * units_per_px
-            pad_units = MIN_GAP_PX * units_per_px
+
+            # diâmetro "raw" em px (antes de sizemin)
+            diam_px_raw = (size_vals / sizeref) if sizeref > 0 else np.zeros_like(size_vals)
+
+            # ✅ replicar a regra do Plotly (sizemin em px)
+            diam_px_eff = np.maximum(diam_px_raw, SIZEMIN_PX)
+            rad_px_eff = diam_px_eff / 2.0
+
+            # raio em unidades do eixo (para packing + shapes + imagens)
+            r_units = rad_px_eff * PX_TO_X
+            pad_units = MIN_GAP_PX * PX_TO_X
 
             def pack_circles_spiral(radii, pad=0.0, angle_step=0.35, r_step=0.6, max_iter=25000):
                 radii = list(radii)
@@ -772,60 +762,49 @@ elif section == "🫧 Bubble — Top espécies":
 
             agg["x"] = xs
             agg["y"] = ys
-            agg["r_units"] = r_units  # <<< IMPORTANTE: guardar raio em unidades do eixo
+            agg["r_units"] = r_units
 
             # =========================
-            # NORMALIZAR CANVAS (fixa a "escala" do eixo)
+            # NORMALIZAR CANVAS + CENTRAR
             # =========================
-            TARGET_SPAN = 18.0   # largura/altura total do canvas em unidades do eixo (aumenta p/ mais "área")
-            MARGIN = 0.6         # margem extra (em unidades) para não cortar contornos
-            
-            # bounding box real incluindo raios
+            TARGET_SPAN = 18.0
+            MARGIN = 0.6
+
             xmin = float((agg["x"] - agg["r_units"]).min())
             xmax = float((agg["x"] + agg["r_units"]).max())
             ymin = float((agg["y"] - agg["r_units"]).min())
             ymax = float((agg["y"] + agg["r_units"]).max())
-            
+
             span = max(xmax - xmin, ymax - ymin)
             span = max(span, 1e-6)
-            
-            # escala para caber num span fixo (TARGET_SPAN)
+
             scale = (TARGET_SPAN - 2 * MARGIN) / span
-            
-            # aplicar escala a posições e raios (isto é o “segredo”)
+
             agg["x"] *= scale
             agg["y"] *= scale
             agg["r_units"] *= scale
 
-            # -------------------------
-            # CENTRAR o layout no (0,0)
-            # -------------------------
+            # centrar
             xmin = float((agg["x"] - agg["r_units"]).min())
             xmax = float((agg["x"] + agg["r_units"]).max())
             ymin = float((agg["y"] - agg["r_units"]).min())
             ymax = float((agg["y"] + agg["r_units"]).max())
-            
+
             cx = (xmin + xmax) / 2.0
             cy = (ymin + ymax) / 2.0
-            
             agg["x"] = agg["x"] - cx
             agg["y"] = agg["y"] - cy
-            
-            # ranges fixos e centrados (mais estável)
+
             x_min, x_max = -TARGET_SPAN / 2, TARGET_SPAN / 2
             y_min, y_max = -TARGET_SPAN / 2, TARGET_SPAN / 2
-
 
             # =========================
             # Imagens por espécie
             # =========================
             PASSER_IMG_PATH = "assets/images/passer_domesticus.jpg"
             species_images = {}
-
             try:
-                species_images["passer domesticus"] = image_to_circular_data_uri(
-                    PASSER_IMG_PATH, out_px=400
-                )
+                species_images["passer domesticus"] = image_to_circular_data_uri(PASSER_IMG_PATH, out_px=400)
             except Exception:
                 pass
 
@@ -839,6 +818,9 @@ elif section == "🫧 Bubble — Top espécies":
 
             fig = go.Figure()
 
+            # =========================
+            # Marcadores (SEM contorno; contorno será shapes)
+            # =========================
             fig.add_trace(
                 go.Scatter(
                     x=agg["x"],
@@ -854,16 +836,16 @@ elif section == "🫧 Bubble — Top espécies":
                         size=agg["Abundância média (N/52)"],
                         sizemode="diameter",
                         sizeref=sizeref,
-                        sizemin=22,
+                        sizemin=SIZEMIN_PX,
                         color=marker_colors,
-                        line=dict(color="black", width=2.5),
+                        line=dict(color="rgba(0,0,0,0)", width=0),  # ✅ contorno via shapes
                         opacity=1.0,
                     ),
                 )
             )
 
             # =========================
-            # Imagens + texto (imagem enche sempre a bolha)
+            # Imagens + texto
             # =========================
             for _, r in agg.iterrows():
                 especie = str(r["Espécie"])
@@ -871,14 +853,11 @@ elif section == "🫧 Bubble — Top espécies":
                 x = float(r["x"])
                 y = float(r["y"])
                 abund = float(r["Abundância média (N/52)"])
-
                 has_image = especie_key in species_images
 
+                # ✅ imagem enche a bolha: usa o DIÂMETRO REAL em unidades do eixo
                 r_u = float(r["r_units"])
-                diam_u = 2.0 * r_u
-                
-                # 1.02 dá uma micro-sobra para garantir “encher” sem ficar visivelmente maior
-                img_size = diam_u * 1.02
+                img_size = max(2.0 * r_u, 0.55)
 
                 if has_image:
                     fig.add_layout_image(
@@ -912,23 +891,33 @@ elif section == "🫧 Bubble — Top espécies":
                     borderpad=5 if has_image else 0,
                 )
 
-            # limites + escala 1:1 (para círculos “perfeitos”)
-            #PAD = 4.0
-            #x_min = float(agg["x"].min()) - PAD
-            #x_max = float(agg["x"].max()) + PAD
-            #y_min = float(agg["y"].min()) - PAD
-            #y_max = float(agg["y"].max()) + PAD
+            # =========================
+            # Contornos pretos FIXOS (sempre do tamanho certo)
+            # =========================
+            for _, r in agg.iterrows():
+                x = float(r["x"])
+                y = float(r["y"])
+                r_u = float(r["r_units"])
 
+                fig.add_shape(
+                    type="circle",
+                    xref="x", yref="y",
+                    x0=x - r_u, x1=x + r_u,
+                    y0=y - r_u, y1=y + r_u,
+                    line=dict(color="black", width=OUTLINE_W),
+                    fillcolor="rgba(0,0,0,0)",
+                    layer="above",
+                )
 
             fig.update_layout(
                 title=f"Top {top_n} — Abundância média (N/52) — {local_plot}",
                 height=820,
                 margin=dict(l=10, r=10, t=70, b=10),
                 showlegend=False,
-                xaxis=dict(visible=False, range=[-TARGET_SPAN/2, TARGET_SPAN/2], fixedrange=True),
+                xaxis=dict(visible=False, range=[x_min, x_max], fixedrange=True),
                 yaxis=dict(
                     visible=False,
-                    range=[-TARGET_SPAN/2, TARGET_SPAN/2],
+                    range=[y_min, y_max],
                     fixedrange=True,
                     scaleanchor="x",
                     scaleratio=1,
@@ -936,7 +925,6 @@ elif section == "🫧 Bubble — Top espécies":
             )
 
             st.plotly_chart(fig, use_container_width=True)
-
 
 elif section == "📄 PDF Lista de espécies":
     st.subheader("📄 PDF Lista de espécies")
