@@ -848,7 +848,7 @@ elif section == "🫧 Bubble — Top espécies":
 
                 # <<< tamanho da imagem baseado no diâmetro REAL da bolha (unidades do eixo)
                 r_u = float(r["r_units"])
-                img_size = max(2.0 * r_u * 1.28, 0.55)  # 0.98 "enche"; 0.55 evita desaparecer
+                img_size = max(2.0 * r_u * 0.98, 0.55)  # 0.98 "enche"; 0.55 evita desaparecer
 
                 if has_image:
                     fig.add_layout_image(
@@ -883,11 +883,11 @@ elif section == "🫧 Bubble — Top espécies":
                 )
 
             # limites + escala 1:1 (para círculos “perfeitos”)
-            PAD = 4.0
-            x_min = float(agg["x"].min()) - PAD
-            x_max = float(agg["x"].max()) + PAD
-            y_min = float(agg["y"].min()) - PAD
-            y_max = float(agg["y"].max()) + PAD
+            #PAD = 4.0
+            #x_min = float(agg["x"].min()) - PAD
+            #x_max = float(agg["x"].max()) + PAD
+            #y_min = float(agg["y"].min()) - PAD
+            #y_max = float(agg["y"].max()) + PAD
 
 
             fig.update_layout(
