@@ -801,8 +801,31 @@ elif section == "🫧 Bubble — Top espécies":
             # =========================
             # Imagens por espécie
             # =========================
-            PASSER_IMG_PATH = "assets/images/passer_domesticus.jpg"
-            species_images = {}
+            ASSETS_IMG = Path("assets/images")
+
+            species_images = {
+                "Passer domesticus": ASSETS_IMG / "passer_domesticus.jpg",
+                "Columba livia": ASSETS_IMG / "columba_livia.jpg",   # ← adicionar aqui
+            }
+
+            def load_species_image(species_name):
+                """Tenta abrir a imagem da espécie. Se falhar, devolve None."""
+                try:
+                    img_path = species_images.get(species_name)
+            
+                    if img_path is None:
+                        return None
+            
+                    if not img_path.exists():
+                        return None
+            
+                    img = Image.open(img_path)
+                    return img
+            
+                except Exception:
+                    # qualquer erro → segue sem imagem
+                    return None
+            
             try:
                 species_images["passer domesticus"] = image_to_circular_data_uri(PASSER_IMG_PATH, out_px=400)
             except Exception:
@@ -848,31 +871,31 @@ elif section == "🫧 Bubble — Top espécies":
             # Imagens + texto
             # =========================
             for _, r in agg.iterrows():
-                especie = str(r["Espécie"])
-                especie_key = especie.lower().strip()
+
+                species = r["Species"]
                 x = float(r["x"])
                 y = float(r["y"])
-                abund = float(r["Abundância média (N/52)"])
-                has_image = especie_key in species_images
-
-                # ✅ imagem enche a bolha: usa o DIÂMETRO REAL em unidades do eixo
                 r_u = float(r["r_units"])
-                img_size = max(2.0 * r_u, 0.55)
-
-                if has_image:
+            
+                # tentar carregar imagem
+                img = load_species_image(species)
+            
+                if img is not None:
+                    img_size = max(2.0 * r_u, 0.55)
+            
                     fig.add_layout_image(
                         dict(
-                            source=species_images[especie_key],
+                            source=img,
                             xref="x",
                             yref="y",
                             x=x,
                             y=y,
-                            xanchor="center",
-                            yanchor="middle",
                             sizex=img_size,
                             sizey=img_size,
+                            xanchor="center",
+                            yanchor="middle",
+                            sizing="contain",
                             layer="below",
-                            opacity=1.0,
                         )
                     )
 
