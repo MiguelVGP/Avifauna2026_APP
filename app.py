@@ -782,6 +782,20 @@ elif section == "🫧 Bubble — Top espécies":
             agg["x"] *= scale
             agg["y"] *= scale
             agg["r_units"] *= scale
+
+            # -------------------------
+            # CENTRAR o layout no (0,0)
+            # -------------------------
+            xmin = float((agg["x"] - agg["r_units"]).min())
+            xmax = float((agg["x"] + agg["r_units"]).max())
+            ymin = float((agg["y"] - agg["r_units"]).min())
+            ymax = float((agg["y"] + agg["r_units"]).max())
+            
+            cx = (xmin + xmax) / 2.0
+            cy = (ymin + ymax) / 2.0
+            
+            agg["x"] = agg["x"] - cx
+            agg["y"] = agg["y"] - cy
             
             # ranges fixos e centrados (mais estável)
             x_min, x_max = -TARGET_SPAN / 2, TARGET_SPAN / 2
