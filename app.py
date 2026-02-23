@@ -943,7 +943,7 @@ elif section == "🫧 Bubble — Top espécies":
                         align="center",
                         font=dict(color="black", size=font_size),
                         bgcolor="rgba(255,255,255,0.15)" if has_image else "rgba(0,0,0,0)",
-                        bordercolor="rgba(0,0,0,0.18)",
+                        bordercolor="rgba(0,0,0,0.18)" if has_image else "rgba(0,0,0,0),
                         borderwidth=0.8,
                         borderpad=6,
                     )   
