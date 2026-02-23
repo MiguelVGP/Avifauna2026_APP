@@ -984,6 +984,7 @@ elif section == "🫧 Bubble — Top espécies":
                                 # médio/grande: nome completo + valor
                                 text = f"<b>{especie}</b><br><b>{abund:.2f}</b>"
                                 font_size = clamp(font_size, 14, 26)
+                        )
                         
                             fig.add_annotation(
                                 x=x,
