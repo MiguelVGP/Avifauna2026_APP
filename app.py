@@ -986,11 +986,17 @@ elif section == "🫧 Bubble — Top espécies":
                                 font_size = clamp(font_size, 14, 26)
                         
                             fig.add_annotation(
-                                x=x, y=y, xref="x", yref="y",
+                                x=x,
+                                y=y,
+                                xref="x",
+                                yref="y",
                                 text=text,
                                 showarrow=False,
                                 align="center",
-                                font=dict(color="black", size=font_size),
+                                font=dict(
+                                    color="black",
+                                    size=font_size,
+                                ),
                                 bgcolor="rgba(255,255,255,0.55)" if has_image else "rgba(0,0,0,0)",
                                 bordercolor="rgba(0,0,0,0.35)" if has_image else "rgba(0,0,0,0)",
                                 borderwidth=1 if has_image else 0,
