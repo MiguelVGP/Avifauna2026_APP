@@ -945,17 +945,58 @@ elif section == "🫧 Bubble — Top espécies":
                     borderpad = 5 if has_image and d_u >= 1.6 else 0
                 
                     fig.add_annotation(
-                        x=x, y=y, xref="x", yref="y",
-                        text=text,
-                        showarrow=False,
-                        align="center",
-                        font=dict(color="black", size=font_size),
-                        bgcolor=bgcolor,
-                        bordercolor=bordercolor,
-                        borderwidth=borderwidth,
-                        borderpad=borderpad,
-                    )
-
+                        def clamp(v, vmin, vmax):
+                            return max(vmin, min(vmax, v))
+                        
+                        def short_name(especie: str) -> str:
+                            parts = especie.split()
+                            if len(parts) >= 2:
+                                return f"{parts[0][0]}. {parts[1]}"   # Ex: "L. fuscus"
+                            return especie
+                        
+                        for _, r in agg.iterrows():
+                            especie = str(r["Espécie"])
+                            especie_key = especie.lower().strip()
+                            x = float(r["x"])
+                            y = float(r["y"])
+                            abund = float(r["Abundância média (N/52)"])
+                            has_image = especie_key in species_images
+                        
+                            r_u = float(r["r_units"])
+                            d_u = 2.0 * r_u
+                        
+                            # Fonte base: sobe um bocado (antes estava muito “tímida”)
+                            # multiplica por ~3 para ficar mais visível em geral
+                            font_size = clamp(int(d_u * 3.0), 12, 26)
+                        
+                            # Regras de conteúdo por tamanho
+                            if d_u < 1.55:
+                                # MUITO pequeno: só nome (sem valor) para caber sempre
+                                text = f"<b>{short_name(especie)}</b>"
+                                font_size = clamp(font_size, 12, 16)
+                        
+                            elif d_u < 2.25:
+                                # pequeno: nome abreviado + valor
+                                text = f"<b>{short_name(especie)}</b><br><b>{abund:.2f}</b>"
+                                font_size = clamp(font_size, 13, 18)
+                        
+                            else:
+                                # médio/grande: nome completo + valor
+                                text = f"<b>{especie}</b><br><b>{abund:.2f}</b>"
+                                font_size = clamp(font_size, 14, 26)
+                        
+                            fig.add_annotation(
+                                x=x, y=y, xref="x", yref="y",
+                                text=text,
+                                showarrow=False,
+                                align="center",
+                                font=dict(color="black", size=font_size),
+                                bgcolor="rgba(255,255,255,0.55)" if has_image else "rgba(0,0,0,0)",
+                                bordercolor="rgba(0,0,0,0.35)" if has_image else "rgba(0,0,0,0)",
+                                borderwidth=1 if has_image else 0,
+                                borderpad=5 if has_image else 0,
+                            )
+                            
             # =========================
             # Contornos pretos FIXOS (sempre do tamanho certo)
             # =========================
