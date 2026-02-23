@@ -888,20 +888,73 @@ elif section == "🫧 Bubble — Top espécies":
                         )
                     )
 
-                fig.add_annotation(
-                    x=x,
-                    y=y,
-                    xref="x",
-                    yref="y",
-                    text=f"<b>{especie}</b><br><b>{abund:.2f}</b>",
-                    showarrow=False,
-                    align="center",
-                    font=dict(color="black", size=16),
-                    bgcolor="rgba(255,255,255,0.55)" if has_image else "rgba(0,0,0,0)",
-                    bordercolor="rgba(0,0,0,0.35)" if has_image else "rgba(0,0,0,0)",
-                    borderwidth=1 if has_image else 0,
-                    borderpad=5 if has_image else 0,
-                )
+                # =========================
+                # Imagens + texto (font size adaptativo)
+                # =========================
+                def clamp(v, vmin, vmax):
+                    return max(vmin, min(vmax, v))
+                
+                def shorten_species(name: str, mode: str = "auto") -> str:
+                    """
+                    - 'auto': tenta manter 2 palavras; se for pequeno, abrevia género.
+                    """
+                    parts = name.split()
+                    if len(parts) >= 2:
+                        genus, species = parts[0], parts[1]
+                        return f"{genus} {species}"
+                    return name
+                
+                for _, r in agg.iterrows():
+                    especie = str(r["Espécie"])
+                    especie_key = especie.lower().strip()
+                    x = float(r["x"])
+                    y = float(r["y"])
+                    abund = float(r["Abundância média (N/52)"])
+                    has_image = especie_key in species_images
+                
+                    r_u = float(r["r_units"])
+                    d_u = 2.0 * r_u  # diâmetro em unidades do eixo
+                
+                    # 1) Font size (ajusta estes números à tua estética)
+                    # regra simples: proporcional ao diâmetro, com limites
+                    font_size = clamp(int(d_u * 2.1), 10, 22)
+                
+                    # 2) Em bolhas pequenas, reduz conteúdo
+                    # thresholds em "unidades do eixo" (ajusta ao teu TARGET_SPAN)
+                    if d_u < 1.6:
+                        # muito pequeno: só valor
+                        text = f"<b>{abund:.2f}</b>"
+                        font_size = clamp(font_size, 10, 14)
+                    elif d_u < 2.4:
+                        # pequeno: espécie abreviada + valor
+                        parts = especie.split()
+                        if len(parts) >= 2:
+                            especie_short = f"{parts[0][0]}. {parts[1]}"
+                        else:
+                            especie_short = especie
+                        text = f"<b>{especie_short}</b><br><b>{abund:.2f}</b>"
+                        font_size = clamp(font_size, 11, 16)
+                    else:
+                        # normal/grande: full
+                        text = f"<b>{especie}</b><br><b>{abund:.2f}</b>"
+                
+                    # 3) Fundo do texto: em bolhas pequenas convém SEM fundo ou mais discreto
+                    bgcolor = "rgba(255,255,255,0.55)" if has_image and d_u >= 1.6 else "rgba(0,0,0,0)"
+                    bordercolor = "rgba(0,0,0,0.35)" if has_image and d_u >= 1.6 else "rgba(0,0,0,0)"
+                    borderwidth = 1 if has_image and d_u >= 1.6 else 0
+                    borderpad = 5 if has_image and d_u >= 1.6 else 0
+                
+                    fig.add_annotation(
+                        x=x, y=y, xref="x", yref="y",
+                        text=text,
+                        showarrow=False,
+                        align="center",
+                        font=dict(color="black", size=font_size),
+                        bgcolor=bgcolor,
+                        bordercolor=bordercolor,
+                        borderwidth=borderwidth,
+                        borderpad=borderpad,
+                    )
 
             # =========================
             # Contornos pretos FIXOS (sempre do tamanho certo)
