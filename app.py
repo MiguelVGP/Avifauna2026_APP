@@ -687,11 +687,11 @@ elif section == "🫧 Bubble — Top espécies":
             # =========================
             # Layout + sizing consistentes
             # =========================
-            MAX_DIAM_PX = 280   # bolha maior
-            PX_TO_X = 0.025     # px -> unidades do eixo (mantém igual ao teu)
-            MIN_GAP_PX = 57     # espaço entre bolhas
-            SIZEMIN_PX = 22     # TEM de ser igual a marker.sizemin
-            OUTLINE_W = 2.5     # espessura fixa do contorno (px)
+            MAX_DIAM_PX = 320    # antes 280 (bolha maior cresce)
+            PX_TO_X     = 0.025  # mantém
+            MIN_GAP_PX  = 28     # antes 57 (bolhas bem mais juntas)
+            SIZEMIN_PX  = 30     # antes 22 (as pequenas deixam de ser microscópicas)
+            OUTLINE_W   = 2.5
 
             sizes = agg["Abundância média (N/52)"].astype(float).values
             max_size = float(np.max(sizes)) if len(sizes) else 1.0
