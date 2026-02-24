@@ -844,6 +844,12 @@ elif section == "🫧 Bubble — Top espécies":
             except Exception:
                 pass
 
+            try:
+                larus_ridibundus_path = ASSETS_IMG / "larus_ridibundus.jpg"   # <-- coloca aqui o ficheiro
+                species_images["larus ridibundus"] = image_to_circular_data_uri(str(larus_ridibundus_path), out_px=420)
+            except Exception:
+                pass
+
             # =========================
             # Cores por bolha
             # =========================
