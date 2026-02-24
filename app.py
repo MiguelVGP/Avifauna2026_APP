@@ -982,7 +982,59 @@ elif section == "🫧 Bubble — Top espécies":
 
             st.plotly_chart(fig, use_container_width=True)
 
+elif section == "📄 PDF Lista de espécies":
+    st.subheader("📄 PDF Lista de espécies")
 
+    if "out_pdf_local" not in st.session_state:
+        st.session_state.out_pdf_local = "Total"
+
+    locais_pdf = ["Total"] + FIXED_LOCAIS
+
+    with st.form("form_pdf", clear_on_submit=False):
+        local_sel_pdf = st.selectbox(
+            "Local",
+            locais_pdf,
+            index=locais_pdf.index(st.session_state.out_pdf_local),
+            key="pdf_local_sel_total_form",
+        )
+        submitted_pdf = st.form_submit_button("Gerar / Atualizar")
+        if submitted_pdf:
+            st.session_state.out_pdf_local = local_sel_pdf
+
+    local_sel_pdf = st.session_state.out_pdf_local
+
+    if df_amostras.empty or any(c not in df_amostras.columns for c in [LOCAL_COL, SPEC_COL, INDIV_COL]):
+        st.info("Faltam colunas necessárias para gerar a lista.")
+    else:
+        base = df_amostras[[LOCAL_COL, SPEC_COL, INDIV_COL]].copy()
+        base[LOCAL_COL] = base[LOCAL_COL].fillna("").astype(str).str.strip()
+        base[SPEC_COL] = base[SPEC_COL].fillna("").astype(str).str.strip()
+        base[INDIV_COL] = pd.to_numeric(base[INDIV_COL], errors="coerce").fillna(0)
+
+        df_loc = base.copy() if local_sel_pdf == "Total" else base[base[LOCAL_COL] == local_sel_pdf]
+
+        if df_loc.empty:
+            st.warning("Sem registos para este local.")
+        else:
+            species_table = (
+                df_loc.groupby(SPEC_COL, dropna=False)[INDIV_COL]
+                .sum()
+                .reset_index()
+                .rename(columns={SPEC_COL: "Espécie", INDIV_COL: "Nº indivíduos"})
+                .sort_values(["Nº indivíduos", "Espécie"], ascending=[False, True])
+                .reset_index(drop=True)
+            )
+
+            pdf_bytes = build_species_list_pdf(local_sel_pdf, species_table)
+
+            st.download_button(
+                "⬇️ Download PDF",
+                data=pdf_bytes,
+                file_name=f"lista_especies_{local_sel_pdf.replace(' ', '_')}_{date.today().strftime('%Y%m%d')}.pdf",
+                mime="application/pdf",
+                key=f"download_pdf_{local_sel_pdf}",
+            )
+            
 elif section == "✅ Presença / Ausência":
     st.subheader("✅ Presença / Ausência")
 
