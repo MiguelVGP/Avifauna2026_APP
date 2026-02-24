@@ -840,7 +840,7 @@ elif section == "🫧 Bubble — Top espécies":
 
             try:
                 larus_fuscus_unicolor_path = ASSETS_IMG / "larus_fuscus.jpg"   # <-- coloca aqui o ficheiro
-                species_images["larus_fuscus"] = image_to_circular_data_uri(str(larus_fuscus_path), out_px=420)
+                species_images["larus fuscus"] = image_to_circular_data_uri(str(larus_fuscus_path), out_px=420)
             except Exception:
                 pass
 
