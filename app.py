@@ -687,10 +687,10 @@ elif section == "🫧 Bubble — Top espécies":
             # =========================
             # Layout + sizing consistentes
             # =========================
-            MAX_DIAM_PX = 380    # antes 280 (bolha maior cresce)
+            MAX_DIAM_PX = 480   # antes 280 (bolha maior cresce)
             PX_TO_X     = 0.025  # mantém
             MIN_GAP_PX  = 28     # antes 57 (bolhas bem mais juntas)
-            SIZEMIN_PX  = 30     # antes 22 (as pequenas deixam de ser microscópicas)
+            SIZEMIN_PX  = 40     # antes 22 (as pequenas deixam de ser microscópicas)
             OUTLINE_W   = 2.5
 
             sizes = agg["Abundância média (N/52)"].astype(float).values
