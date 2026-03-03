@@ -361,56 +361,119 @@ def build_matrix_pdf(title: str, matrix_df: pd.DataFrame) -> bytes:
     buffer.seek(0)
     return buffer.getvalue()
 
-# Ajusta este caminho para a tua estrutura (Windows/OneDrive)
-# Exemplo (o teu print mostra algo deste género):
-# IPMA_BASE_DIR = r"C:\Users\...\OneDrive\Miguel - Biota, Lda\Ficheiros de NAS - 06Bases\01BasesDados\IPMA_dados meteo\Janeiro 2026"
-IPMA_BASE_DIR = Path("assets/ipma/Janeiro_2026")
+# =========================
+# IPMA — Meteo (subpastas por mês, ex. assets/ipma/JAN2026/14-01-2026.csv)
+# =========================
+from pathlib import Path
+import re
 
-DAY_FOLDER_RE = re.compile(r"^\d{2}-\d{2}-\d{4}")  # aceita "29-01-2026 (Falhou luz)" porque começa por dd-mm-aaaa
+IPMA_ROOT = Path("assets/ipma")  # caminho relativo no repo (Streamlit Cloud / GitHub)
 
-
-def list_ipma_day_folders(base_dir: str) -> list[str]:
-    base = Path(base_dir)
-    if not base.exists():
-        return []
-    days = []
-    for p in base.iterdir():
-        if p.is_dir() and DAY_FOLDER_RE.match(p.name.strip()):
-            days.append(p.name)
-    # ordenar por data (usa os 10 primeiros chars dd-mm-aaaa)
-    def key_fn(name: str):
-        d = name[:10]  # "dd-mm-aaaa"
-        dd, mm, yyyy = d.split("-")
-        return (int(yyyy), int(mm), int(dd))
-    return sorted(days, key=key_fn)
-
+DAY_PREFIX_RE = re.compile(r"^(\d{2}-\d{2}-\d{4})")  # captura "14-01-2026" mesmo que haja sufixos
 
 @st.cache_data(ttl=300, show_spinner=False)
-def load_ipma_day(base_dir: str, day_folder_name: str) -> pd.DataFrame:
-    folder = Path(base_dir) / day_folder_name
+def list_month_folders(root: Path) -> list:
+    if not root.exists() or not root.is_dir():
+        return []
+    months = [p.name for p in sorted(root.iterdir()) if p.is_dir()]
+    return months
+
+@st.cache_data(ttl=300, show_spinner=False)
+def list_days_for_month(root: Path, month_folder: str) -> list:
+    folder = root / month_folder
     if not folder.exists() or not folder.is_dir():
-        return pd.DataFrame()
-
-    csvs = sorted(folder.glob("*.csv"))
-    if not csvs:
-        return pd.DataFrame()
-
-    frames = []
-    for f in csvs:
+        return []
+    days = []
+    for p in sorted(folder.glob("*.csv")):
+        m = DAY_PREFIX_RE.match(p.stem.strip())
+        if m:
+            days.append(m.group(1))
+        else:
+            # se não corresponder ao prefixo, ainda adiciona o stem inteiro
+            days.append(p.stem)
+    # deduplicate preserving order
+    seen = set()
+    out = []
+    for d in days:
+        if d not in seen:
+            seen.add(d)
+            out.append(d)
+    # ordenar por data dd-mm-aaaa
+    def key_fn(d: str):
         try:
-            dfx = pd.read_csv(f, sep=",")
-            # Se vier "tudo numa coluna" (por engano de separador), tenta re-ler:
-            if dfx.shape[1] == 1 and dfx.columns.size == 1 and ("," in str(dfx.columns[0])):
-                dfx = pd.read_csv(f, sep=",", engine="python")
-            frames.append(dfx)
+            dd, mm, yyyy = d.split("-")
+            return (int(yyyy), int(mm), int(dd))
+        except Exception:
+            return (9999, 99, 99)
+    try:
+        out_sorted = sorted(out, key=key_fn)
+    except Exception:
+        out_sorted = out
+    return out_sorted
+
+@st.cache_data(ttl=300, show_spinner=False)
+def find_csv_for_day(root: Path, month_folder: str, day_prefix: str) -> Path | None:
+    folder = root / month_folder
+    if not folder.exists() or not folder.is_dir():
+        return None
+    # tenta procurar ficheiros que comecem por day_prefix
+    for p in sorted(folder.glob(f"{day_prefix}*.csv")):
+        return p
+    # fallback: procura qualquer csv cujo stem contenha o day_prefix
+    for p in sorted(folder.glob("*.csv")):
+        if day_prefix in p.stem:
+            return p
+    return None
+
+@st.cache_data(ttl=300, show_spinner=False)
+def load_csv_robust(fp: Path) -> pd.DataFrame:
+    if fp is None or not fp.exists() or fp.stat().st_size == 0:
+        return pd.DataFrame()
+    # tenta vários separadores comuns
+    for sep in [",", ";", "\t"]:
+        try:
+            df = pd.read_csv(fp, sep=sep, engine="python")
+            if df.shape[1] > 1:
+                return df
         except Exception:
             continue
-
-    if not frames:
+    # última tentativa: leitura simples
+    try:
+        return pd.read_csv(fp)
+    except Exception:
         return pd.DataFrame()
 
-    out = pd.concat(frames, ignore_index=True)
-    return out
+def classify_column_types(df: pd.DataFrame) -> dict:
+    """
+    Devolve dict com listas de colunas: {'numeric': [...], 'date': [...], 'text': [...]}
+    """
+    numeric_cols = []
+    date_cols = []
+    text_cols = []
+    for c in df.columns:
+        series = df[c].dropna()
+        if series.empty:
+            text_cols.append(c)
+            continue
+        # tenta número
+        try:
+            s_num = pd.to_numeric(series, errors="coerce")
+            if s_num.notna().sum() / max(1, len(series)) > 0.8:
+                numeric_cols.append(c)
+                continue
+        except Exception:
+            pass
+        # tenta data
+        try:
+            s_dt = pd.to_datetime(series, errors="coerce", dayfirst=True)
+            if s_dt.notna().sum() / max(1, len(series)) > 0.8:
+                date_cols.append(c)
+                continue
+        except Exception:
+            pass
+        # senão, texto
+        text_cols.append(c)
+    return {"numeric": numeric_cols, "date": date_cols, "text": text_cols}
 
 # =========================
 # Header + Controls
@@ -1513,101 +1576,110 @@ elif section == "📋 Tabela":
                 st.session_state.table_filters_applied = True
 
 # =========================
-# Secção IPMA
+# SECÇÃO IPMA — usa IF para evitar erros de estrutura
 # =========================
-
-elif section == "🌦️ IPMA — Meteo":
+if section == "🌦️ IPMA — Meteo":
     st.subheader("🌦️ IPMA — Meteo")
 
-    # (opcional) permitir alterar a pasta base pela UI
-    ipma_base = st.text_input("Pasta base (IPMA)", value=IPMA_BASE_DIR)
-
-    day_folders = list_ipma_day_folders(ipma_base)
-
-    if not day_folders:
-        st.warning("Não encontrei pastas de dia (dd-mm-aaaa) nessa pasta base.")
+    months = list_month_folders(IPMA_ROOT)
+    if not months:
+        st.warning("Não encontrei a pasta `assets/ipma` ou não existem subpastas de mês.")
         st.stop()
 
-    if "ipma_day_sel" not in st.session_state:
-        st.session_state.ipma_day_sel = day_folders[-1]  # por defeito, o mais recente
+    # escolher mês (ex.: "JAN2026")
+    if "ipma_month" not in st.session_state:
+        st.session_state.ipma_month = months[-1]  # por defeito: o mais recente
 
-    with st.form("form_ipma_day", clear_on_submit=False):
-        day_sel = st.selectbox(
-            "Dia",
-            options=day_folders,
-            index=day_folders.index(st.session_state.ipma_day_sel) if st.session_state.ipma_day_sel in day_folders else len(day_folders) - 1,
-        )
-        apply_day = st.form_submit_button("Aplicar")
-        if apply_day:
-            st.session_state.ipma_day_sel = day_sel
+    month_sel = st.selectbox("Mês (pasta)", options=months, index=months.index(st.session_state.ipma_month))
+    st.session_state.ipma_month = month_sel
 
-    day_sel = st.session_state.ipma_day_sel
+    # listar dias disponíveis nesse mês
+    days = list_days_for_month(IPMA_ROOT, month_sel)
+    if not days:
+        st.info("Não há ficheiros .csv nessa pasta de mês selecionada.")
+        st.stop()
 
-    with st.spinner("A carregar dados IPMA..."):
-        ipma_df = load_ipma_day(ipma_base, day_sel)
+    if "ipma_day" not in st.session_state:
+        st.session_state.ipma_day = days[-1]
 
-    # Pasta não existe ou está vazia (ou sem CSVs válidos)
-    if ipma_df.empty:
+    day_sel = st.selectbox("Dia", options=days, index=days.index(st.session_state.ipma_day))
+    st.session_state.ipma_day = day_sel
+
+    # encontrar o ficheiro CSV para o dia
+    csv_path = find_csv_for_day(IPMA_ROOT, month_sel, day_sel)
+
+    if csv_path is None:
         st.info("Dados não disponíveis :(")
         st.stop()
 
-    # --------
-    # Filtro por colunas
-    # --------
-    all_cols = list(ipma_df.columns)
+    with st.spinner("A carregar ficheiro..."):
+        df_ipma = load_csv_robust(csv_path)
 
-    # Sugestão: defaults típicos do teu CSV (se existirem)
-    prefer_cols = [
-        "obs_datetime", "station_id", "station_name", "lat", "lon",
-        "temperatura", "humidade", "pressao",
-        "intensidadeVento", "intensidadeVentoKM", "direccVento_txt",
-        "precAcumulada", "radiacao"
-    ]
-    default_cols = [c for c in prefer_cols if c in all_cols]
-    if not default_cols:
-        default_cols = all_cols[:12] if len(all_cols) > 12 else all_cols
+    if df_ipma.empty:
+        st.info("Dados não disponíveis :(")
+        st.stop()
 
-    show_cols = st.multiselect("Colunas", options=all_cols, default=default_cols, key="ipma_show_cols")
+    # detectar tipos de colunas
+    types = classify_column_types(df_ipma)
+    numeric_cols = types["numeric"]
+    date_cols = types["date"]
+    text_cols = types["text"]
 
-    # --------
-    # Métricas rápidas (opcional)
-    # --------
-    k1, k2, k3 = st.columns(3)
-    k1.metric("Registos", f"{len(ipma_df):,}".replace(",", " "))
-    if "station_id" in ipma_df.columns:
-        k2.metric("Estações", str(ipma_df["station_id"].nunique(dropna=True)))
+    # Selector para tipo de colunas
+    col_type_choice = st.radio("Mostrar colunas:", options=["Todas", "Numéricas", "Datas", "Texto"], index=0, horizontal=True)
+
+    if col_type_choice == "Todas":
+        all_cols = list(df_ipma.columns)
+    elif col_type_choice == "Numéricas":
+        all_cols = numeric_cols
+    elif col_type_choice == "Datas":
+        all_cols = date_cols
     else:
-        k2.metric("Estações", "-")
+        all_cols = text_cols
 
-    if "obs_datetime" in ipma_df.columns:
-        dt = pd.to_datetime(ipma_df["obs_datetime"], errors="coerce")
-        if dt.notna().any():
-            k3.metric("Janela temporal", f"{dt.min()} → {dt.max()}")
-        else:
-            k3.metric("Janela temporal", "-")
+    if not all_cols:
+        st.warning("Não há colunas desse tipo no ficheiro selecionado.")
+        st.stop()
+
+    # permitir seleção manual adicional
+    show_cols = st.multiselect("Colunas a mostrar", options=list(df_ipma.columns), default=all_cols)
+
+    # Métricas rápidas
+    c1, c2, c3 = st.columns(3)
+    c1.metric("Registos", f"{len(df_ipma):,}".replace(",", " "))
+    c2.metric("Colunas", str(len(df_ipma.columns)))
+    # janela temporal quando existir coluna que pareça 'date' ou 'time'
+    if date_cols:
+        try:
+            sdt = pd.to_datetime(df_ipma[date_cols[0]], errors="coerce", dayfirst=True)
+            if sdt.notna().any():
+                c3.metric("Período (ex.)", f"{sdt.min().date()} → {sdt.max().date()}")
+            else:
+                c3.metric("Período (ex.)", "-")
+        except Exception:
+            c3.metric("Período (ex.)", "-")
     else:
-        k3.metric("Janela temporal", "-")
+        c3.metric("Período (ex.)", "-")
 
     st.divider()
+    st.dataframe(df_ipma[show_cols], width="stretch", height=650)
 
-    st.dataframe(ipma_df[show_cols], width="stretch", height=650)
-
-    # --------
-    # Export Excel do dia (com colunas selecionadas)
-    # --------
+    # Export Excel
     buffer = io.BytesIO()
     with pd.ExcelWriter(buffer, engine="openpyxl") as writer:
-        ipma_df[show_cols].to_excel(writer, index=False, sheet_name="IPMA_Dia")
+        df_ipma[show_cols].to_excel(writer, index=False, sheet_name="IPMA")
     buffer.seek(0)
-
     st.download_button(
         "⬇️ Exportar Excel (dia)",
         data=buffer,
-        file_name=f"ipma_{day_sel[:10].replace('-', '')}.xlsx",
+        file_name=f"ipma_{month_sel}_{day_sel.replace('-', '')}.xlsx",
         mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-        key="download_ipma_excel_day",
+        key=f"download_ipma_{month_sel}_{day_sel}",
     )
 
+
+
+    
     if st.session_state.table_filters_applied and st.session_state.table_ui_state:
         filtered = apply_filters(df_base, st.session_state.table_ui_state)
     else:
