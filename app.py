@@ -1463,12 +1463,6 @@ elif section == "📋 Tabela":
                 st.session_state.table_ui_state = ui_state
                 st.session_state.table_filters_applied = True
 
-    # =========================
-# IPMA — Meteo (pastas por dia)
-# =========================
-import re
-from pathlib import Path
-
 # Ajusta este caminho para a tua estrutura (Windows/OneDrive)
 # Exemplo (o teu print mostra algo deste género):
 # IPMA_BASE_DIR = r"C:\Users\...\OneDrive\Miguel - Biota, Lda\Ficheiros de NAS - 06Bases\01BasesDados\IPMA_dados meteo\Janeiro 2026"
@@ -1530,6 +1524,7 @@ def load_ipma_day(base_dir: str, day_folder_name: str) -> pd.DataFrame:
 # =========================
 # Secção IPMA
 # =========================
+
 elif section == "🌦️ IPMA — Meteo":
     st.subheader("🌦️ IPMA — Meteo")
 
