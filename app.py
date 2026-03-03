@@ -361,7 +361,56 @@ def build_matrix_pdf(title: str, matrix_df: pd.DataFrame) -> bytes:
     buffer.seek(0)
     return buffer.getvalue()
 
+# Ajusta este caminho para a tua estrutura (Windows/OneDrive)
+# Exemplo (o teu print mostra algo deste género):
+# IPMA_BASE_DIR = r"C:\Users\...\OneDrive\Miguel - Biota, Lda\Ficheiros de NAS - 06Bases\01BasesDados\IPMA_dados meteo\Janeiro 2026"
+IPMA_BASE_DIR = Path("assets/ipma/Janeiro_2026")
 
+DAY_FOLDER_RE = re.compile(r"^\d{2}-\d{2}-\d{4}")  # aceita "29-01-2026 (Falhou luz)" porque começa por dd-mm-aaaa
+
+
+def list_ipma_day_folders(base_dir: str) -> list[str]:
+    base = Path(base_dir)
+    if not base.exists():
+        return []
+    days = []
+    for p in base.iterdir():
+        if p.is_dir() and DAY_FOLDER_RE.match(p.name.strip()):
+            days.append(p.name)
+    # ordenar por data (usa os 10 primeiros chars dd-mm-aaaa)
+    def key_fn(name: str):
+        d = name[:10]  # "dd-mm-aaaa"
+        dd, mm, yyyy = d.split("-")
+        return (int(yyyy), int(mm), int(dd))
+    return sorted(days, key=key_fn)
+
+
+@st.cache_data(ttl=300, show_spinner=False)
+def load_ipma_day(base_dir: str, day_folder_name: str) -> pd.DataFrame:
+    folder = Path(base_dir) / day_folder_name
+    if not folder.exists() or not folder.is_dir():
+        return pd.DataFrame()
+
+    csvs = sorted(folder.glob("*.csv"))
+    if not csvs:
+        return pd.DataFrame()
+
+    frames = []
+    for f in csvs:
+        try:
+            dfx = pd.read_csv(f, sep=",")
+            # Se vier "tudo numa coluna" (por engano de separador), tenta re-ler:
+            if dfx.shape[1] == 1 and dfx.columns.size == 1 and ("," in str(dfx.columns[0])):
+                dfx = pd.read_csv(f, sep=",", engine="python")
+            frames.append(dfx)
+        except Exception:
+            continue
+
+    if not frames:
+        return pd.DataFrame()
+
+    out = pd.concat(frames, ignore_index=True)
+    return out
 
 # =========================
 # Header + Controls
@@ -1462,64 +1511,6 @@ elif section == "📋 Tabela":
             elif apply_btn:
                 st.session_state.table_ui_state = ui_state
                 st.session_state.table_filters_applied = True
-
-# Ajusta este caminho para a tua estrutura (Windows/OneDrive)
-# Exemplo (o teu print mostra algo deste género):
-# IPMA_BASE_DIR = r"C:\Users\...\OneDrive\Miguel - Biota, Lda\Ficheiros de NAS - 06Bases\01BasesDados\IPMA_dados meteo\Janeiro 2026"
-IPMA_BASE_DIR = Path("assets/ipma/Janeiro_2026")
-
-DAY_FOLDER_RE = re.compile(r"^\d{2}-\d{2}-\d{4}")  # aceita "29-01-2026 (Falhou luz)" porque começa por dd-mm-aaaa
-
-
-def list_ipma_day_folders(base_dir: str) -> list[str]:
-    base = Path(base_dir)
-    if not base.exists():
-        return []
-    days = []
-    for p in base.iterdir():
-        if p.is_dir() and DAY_FOLDER_RE.match(p.name.strip()):
-            days.append(p.name)
-    # ordenar por data (usa os 10 primeiros chars dd-mm-aaaa)
-    def key_fn(name: str):
-        d = name[:10]  # "dd-mm-aaaa"
-        dd, mm, yyyy = d.split("-")
-        return (int(yyyy), int(mm), int(dd))
-    return sorted(days, key=key_fn)
-
-
-@st.cache_data(ttl=300, show_spinner=False)
-def load_ipma_day(base_dir: str, day_folder_name: str) -> pd.DataFrame:
-    folder = Path(base_dir) / day_folder_name
-    if not folder.exists() or not folder.is_dir():
-        return pd.DataFrame()
-
-    csvs = sorted(folder.glob("*.csv"))
-    if not csvs:
-        return pd.DataFrame()
-
-    frames = []
-    for f in csvs:
-        try:
-            dfx = pd.read_csv(f, sep=",")
-            # Se vier "tudo numa coluna" (por engano de separador), tenta re-ler:
-            if dfx.shape[1] == 1 and dfx.columns.size == 1 and ("," in str(dfx.columns[0])):
-                dfx = pd.read_csv(f, sep=",", engine="python")
-            frames.append(dfx)
-        except Exception:
-            continue
-
-    if not frames:
-        return pd.DataFrame()
-
-    out = pd.concat(frames, ignore_index=True)
-    return out
-
-
-# =========================
-# Sidebar: adiciona esta opção
-# =========================
-# Em OPTIONS, adiciona algo do género:
-# "🌦️ IPMA — Meteo",
 
 # =========================
 # Secção IPMA
