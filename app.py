@@ -403,6 +403,7 @@ OPTIONS = [
     "📄 PDF Lista de espécies",
     "✅ Presença / Ausência",
     "🧩 Matriz Presença",   # <-- NOVA
+    "🌦️ IPMA — Meteo",
 ]
 
 #if "section" not in st.session_state:
@@ -1461,6 +1462,165 @@ elif section == "📋 Tabela":
             elif apply_btn:
                 st.session_state.table_ui_state = ui_state
                 st.session_state.table_filters_applied = True
+
+    # =========================
+# IPMA — Meteo (pastas por dia)
+# =========================
+import re
+from pathlib import Path
+
+# Ajusta este caminho para a tua estrutura (Windows/OneDrive)
+# Exemplo (o teu print mostra algo deste género):
+# IPMA_BASE_DIR = r"C:\Users\...\OneDrive\Miguel - Biota, Lda\Ficheiros de NAS - 06Bases\01BasesDados\IPMA_dados meteo\Janeiro 2026"
+IPMA_BASE_DIR = Path("assets/ipma/Janeiro_2026")
+
+DAY_FOLDER_RE = re.compile(r"^\d{2}-\d{2}-\d{4}")  # aceita "29-01-2026 (Falhou luz)" porque começa por dd-mm-aaaa
+
+
+def list_ipma_day_folders(base_dir: str) -> list[str]:
+    base = Path(base_dir)
+    if not base.exists():
+        return []
+    days = []
+    for p in base.iterdir():
+        if p.is_dir() and DAY_FOLDER_RE.match(p.name.strip()):
+            days.append(p.name)
+    # ordenar por data (usa os 10 primeiros chars dd-mm-aaaa)
+    def key_fn(name: str):
+        d = name[:10]  # "dd-mm-aaaa"
+        dd, mm, yyyy = d.split("-")
+        return (int(yyyy), int(mm), int(dd))
+    return sorted(days, key=key_fn)
+
+
+@st.cache_data(ttl=300, show_spinner=False)
+def load_ipma_day(base_dir: str, day_folder_name: str) -> pd.DataFrame:
+    folder = Path(base_dir) / day_folder_name
+    if not folder.exists() or not folder.is_dir():
+        return pd.DataFrame()
+
+    csvs = sorted(folder.glob("*.csv"))
+    if not csvs:
+        return pd.DataFrame()
+
+    frames = []
+    for f in csvs:
+        try:
+            dfx = pd.read_csv(f, sep=",")
+            # Se vier "tudo numa coluna" (por engano de separador), tenta re-ler:
+            if dfx.shape[1] == 1 and dfx.columns.size == 1 and ("," in str(dfx.columns[0])):
+                dfx = pd.read_csv(f, sep=",", engine="python")
+            frames.append(dfx)
+        except Exception:
+            continue
+
+    if not frames:
+        return pd.DataFrame()
+
+    out = pd.concat(frames, ignore_index=True)
+    return out
+
+
+# =========================
+# Sidebar: adiciona esta opção
+# =========================
+# Em OPTIONS, adiciona algo do género:
+# "🌦️ IPMA — Meteo",
+
+# =========================
+# Secção IPMA
+# =========================
+elif section == "🌦️ IPMA — Meteo":
+    st.subheader("🌦️ IPMA — Meteo")
+
+    # (opcional) permitir alterar a pasta base pela UI
+    ipma_base = st.text_input("Pasta base (IPMA)", value=IPMA_BASE_DIR)
+
+    day_folders = list_ipma_day_folders(ipma_base)
+
+    if not day_folders:
+        st.warning("Não encontrei pastas de dia (dd-mm-aaaa) nessa pasta base.")
+        st.stop()
+
+    if "ipma_day_sel" not in st.session_state:
+        st.session_state.ipma_day_sel = day_folders[-1]  # por defeito, o mais recente
+
+    with st.form("form_ipma_day", clear_on_submit=False):
+        day_sel = st.selectbox(
+            "Dia",
+            options=day_folders,
+            index=day_folders.index(st.session_state.ipma_day_sel) if st.session_state.ipma_day_sel in day_folders else len(day_folders) - 1,
+        )
+        apply_day = st.form_submit_button("Aplicar")
+        if apply_day:
+            st.session_state.ipma_day_sel = day_sel
+
+    day_sel = st.session_state.ipma_day_sel
+
+    with st.spinner("A carregar dados IPMA..."):
+        ipma_df = load_ipma_day(ipma_base, day_sel)
+
+    # Pasta não existe ou está vazia (ou sem CSVs válidos)
+    if ipma_df.empty:
+        st.info("Dados não disponíveis :(")
+        st.stop()
+
+    # --------
+    # Filtro por colunas
+    # --------
+    all_cols = list(ipma_df.columns)
+
+    # Sugestão: defaults típicos do teu CSV (se existirem)
+    prefer_cols = [
+        "obs_datetime", "station_id", "station_name", "lat", "lon",
+        "temperatura", "humidade", "pressao",
+        "intensidadeVento", "intensidadeVentoKM", "direccVento_txt",
+        "precAcumulada", "radiacao"
+    ]
+    default_cols = [c for c in prefer_cols if c in all_cols]
+    if not default_cols:
+        default_cols = all_cols[:12] if len(all_cols) > 12 else all_cols
+
+    show_cols = st.multiselect("Colunas", options=all_cols, default=default_cols, key="ipma_show_cols")
+
+    # --------
+    # Métricas rápidas (opcional)
+    # --------
+    k1, k2, k3 = st.columns(3)
+    k1.metric("Registos", f"{len(ipma_df):,}".replace(",", " "))
+    if "station_id" in ipma_df.columns:
+        k2.metric("Estações", str(ipma_df["station_id"].nunique(dropna=True)))
+    else:
+        k2.metric("Estações", "-")
+
+    if "obs_datetime" in ipma_df.columns:
+        dt = pd.to_datetime(ipma_df["obs_datetime"], errors="coerce")
+        if dt.notna().any():
+            k3.metric("Janela temporal", f"{dt.min()} → {dt.max()}")
+        else:
+            k3.metric("Janela temporal", "-")
+    else:
+        k3.metric("Janela temporal", "-")
+
+    st.divider()
+
+    st.dataframe(ipma_df[show_cols], width="stretch", height=650)
+
+    # --------
+    # Export Excel do dia (com colunas selecionadas)
+    # --------
+    buffer = io.BytesIO()
+    with pd.ExcelWriter(buffer, engine="openpyxl") as writer:
+        ipma_df[show_cols].to_excel(writer, index=False, sheet_name="IPMA_Dia")
+    buffer.seek(0)
+
+    st.download_button(
+        "⬇️ Exportar Excel (dia)",
+        data=buffer,
+        file_name=f"ipma_{day_sel[:10].replace('-', '')}.xlsx",
+        mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        key="download_ipma_excel_day",
+    )
 
     if st.session_state.table_filters_applied and st.session_state.table_ui_state:
         filtered = apply_filters(df_base, st.session_state.table_ui_state)
