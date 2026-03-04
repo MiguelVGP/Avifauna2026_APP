@@ -1476,7 +1476,6 @@ elif section == "📋 Tabela":
             cols_to_filter = [c for c in cols_to_filter if c in df_base.columns]
 
             ui_state = {}
-
             ncols = 3
             rows = [cols_to_filter[i:i + ncols] for i in range(0, len(cols_to_filter), ncols)]
 
@@ -1489,6 +1488,9 @@ elif section == "📋 Tabela":
                     colname = row[i]
                     s = df_base[colname]
 
+                    # --------
+                    # NUMÉRICO
+                    # --------
                     if pd.api.types.is_numeric_dtype(s):
                         numeric = pd.to_numeric(s, errors="coerce").dropna()
                         if numeric.empty:
@@ -1506,6 +1508,7 @@ elif section == "📋 Tabela":
                             else:
                                 prev = st.session_state.table_ui_state.get(colname, {}).get("value")
                                 default_rng = prev if (isinstance(prev, (tuple, list)) and len(prev) == 2) else (minv, maxv)
+
                                 rng = st.slider(
                                     colname,
                                     min_value=minv,
@@ -1513,10 +1516,15 @@ elif section == "📋 Tabela":
                                     value=(float(default_rng[0]), float(default_rng[1])),
                                 )
                                 ui_state[colname] = {"type": "numeric", "value": rng}
+
+                    # --------
+                    # DATA / CATEGÓRICO / TEXTO
+                    # --------
                     else:
                         dt = pd.to_datetime(s, errors="coerce", dayfirst=True, format="mixed")
                         valid = dt.dropna()
 
+                        # Se parece data
                         if len(valid) >= max(10, int(0.2 * len(s.dropna()))) and not valid.empty:
                             mind = valid.min().date()
                             maxd = valid.max().date()
@@ -1524,11 +1532,14 @@ elif section == "📋 Tabela":
                             with cols[i]:
                                 prev = st.session_state.table_ui_state.get(colname, {}).get("value")
                                 default_dr = prev if (isinstance(prev, tuple) and len(prev) == 2) else (mind, maxd)
+
                                 dr = st.date_input(colname, value=default_dr)
                                 if isinstance(dr, tuple) and len(dr) == 2:
                                     ui_state[colname] = {"type": "date", "value": dr}
                                 else:
                                     ui_state[colname] = {"type": None, "value": None}
+
+                        # Senão: categórico (<=50) ou texto
                         else:
                             s_safe = s.apply(to_hashable_text)
                             try:
@@ -1541,11 +1552,13 @@ elif section == "📋 Tabela":
                                     options = sorted([x for x in s_safe.dropna().astype(str).unique()])
                                     prev = st.session_state.table_ui_state.get(colname, {}).get("value")
                                     default_sel = prev if isinstance(prev, list) else []
+
                                     sel = st.multiselect(colname, options=options, default=default_sel)
                                     ui_state[colname] = {"type": "categorical", "value": sel}
                                 else:
                                     prev = st.session_state.table_ui_state.get(colname, {}).get("value")
                                     default_txt = prev if isinstance(prev, str) else ""
+
                                     txt = st.text_input(f"{colname} (contains)", value=default_txt)
                                     ui_state[colname] = {"type": "text", "value": txt}
 
@@ -1561,6 +1574,46 @@ elif section == "📋 Tabela":
             elif apply_btn:
                 st.session_state.table_ui_state = ui_state
                 st.session_state.table_filters_applied = True
+
+    # =========================
+    # APLICAR FILTROS
+    # =========================
+    if st.session_state.table_filters_applied and st.session_state.table_ui_state:
+        filtered = apply_filters(df_base, st.session_state.table_ui_state)
+    else:
+        filtered = df_base.copy()
+
+    # =========================
+    # COLUNAS VISÍVEIS
+    # =========================
+    all_cols = list(filtered.columns)
+    prefer = [
+        "_id", "dados/Data", "dados/Hora", "dados/N_Semana", "dados/Local",
+        "Amostragem/Espécie", "Amostragem/Outra_Esp_cie", "Amostragem/Espécie_final",
+        "Amostragem/N_Indiv_duos", "Amostragem/Notas"
+    ]
+    default_show = [c for c in prefer if c in all_cols]
+    if len(default_show) < 6:
+        default_show = all_cols[:20] if len(all_cols) >= 20 else all_cols
+
+    show_cols = st.multiselect("Colunas visíveis", options=all_cols, default=default_show, key="table_show_cols")
+
+    st.dataframe(filtered[show_cols], width="stretch", height=560)
+
+    # =========================
+    # EXPORT EXCEL
+    # =========================
+    buffer = io.BytesIO()
+    with pd.ExcelWriter(buffer, engine="openpyxl") as writer:
+        filtered[show_cols].to_excel(writer, index=False, sheet_name="Dados Filtrados")
+    buffer.seek(0)
+
+    st.download_button(
+        "⬇️ Exportar Excel (dados filtrados)",
+        data=buffer,
+        file_name="kobo_dados_filtrados.xlsx",
+        mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    )
 
 elif section == "🌦️ IPMA — Meteo":
     st.subheader("🌦️ IPMA — Meteo")
@@ -1675,38 +1728,16 @@ elif section == "🌦️ IPMA — Meteo":
     # --------
     # Filtro por local (station_name ou station_id)
     # --------
-    loc_col = None
-    for cand in ["station_name", "station_id", "estacao", "Estacao", "station"]:
+    for cand in ["station_name", "station_id"]:
         if cand in df_show.columns:
             loc_col = cand
             break
     
     if loc_col is not None:
-        # opções
-        if loc_col == "station_id":
-            opts = sorted(df_show[loc_col].dropna().astype(str).unique())
-            sel = st.multiselect("Local (station_id)", options=opts, default=opts)
-            if sel:
-                df_show = df_show[df_show[loc_col].astype(str).isin(sel)].copy()
-            else:
-                st.info("Dados não disponíveis :(")
-                st.stop()
-        else:
-            opts = sorted(df_show[loc_col].dropna().astype(str).unique())
-            sel = st.multiselect("Local (station_name)", options=opts, default=opts)
-            if sel:
-                df_show = df_show[df_show[loc_col].astype(str).isin(sel)].copy()
-            else:
-                st.info("Dados não disponíveis :(")
-                st.stop()
-    else:
-        st.info("Não encontrei coluna de local (station_name / station_id).")
-    
-        if not show_cols:
-            st.warning("Seleciona pelo menos uma coluna.")
-            st.stop()
-    
-        st.dataframe(df_show[show_cols], width="stretch", height=650)
+        opts = sorted(df_show[loc_col].dropna().astype(str).unique())
+        sel_loc = st.multiselect("Local", options=opts, default=[], key="ipma_loc_sel")
+        if sel_loc:  # só filtra se escolheres algo
+            df_show = df_show[df_show[loc_col].astype(str).isin(sel_loc)].copy()
 
 
 
