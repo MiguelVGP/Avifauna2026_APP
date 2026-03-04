@@ -1672,11 +1672,41 @@ elif section == "🌦️ IPMA — Meteo":
     default_cols = all_cols[:12] if len(all_cols) > 12 else all_cols
     show_cols = st.multiselect("Colunas", options=all_cols, default=default_cols, key="ipma_cols_sel")
 
-    if not show_cols:
-        st.warning("Seleciona pelo menos uma coluna.")
-        st.stop()
-
-    st.dataframe(df_show[show_cols], width="stretch", height=650)
+    # --------
+    # Filtro por local (station_name ou station_id)
+    # --------
+    loc_col = None
+    for cand in ["station_name", "station_id", "estacao", "Estacao", "station"]:
+        if cand in df_show.columns:
+            loc_col = cand
+            break
+    
+    if loc_col is not None:
+        # opções
+        if loc_col == "station_id":
+            opts = sorted(df_show[loc_col].dropna().astype(str).unique())
+            sel = st.multiselect("Local (station_id)", options=opts, default=opts)
+            if sel:
+                df_show = df_show[df_show[loc_col].astype(str).isin(sel)].copy()
+            else:
+                st.info("Dados não disponíveis :(")
+                st.stop()
+        else:
+            opts = sorted(df_show[loc_col].dropna().astype(str).unique())
+            sel = st.multiselect("Local (station_name)", options=opts, default=opts)
+            if sel:
+                df_show = df_show[df_show[loc_col].astype(str).isin(sel)].copy()
+            else:
+                st.info("Dados não disponíveis :(")
+                st.stop()
+    else:
+        st.info("Não encontrei coluna de local (station_name / station_id).")
+    
+        if not show_cols:
+            st.warning("Seleciona pelo menos uma coluna.")
+            st.stop()
+    
+        st.dataframe(df_show[show_cols], width="stretch", height=650)
 
 
 
