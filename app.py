@@ -1630,6 +1630,7 @@ elif section == "🌦️ IPMA — Meteo":
         "Mês",
         options=months,
         index=months.index(st.session_state.ipma_month) if st.session_state.ipma_month in months else len(months) - 1,
+        key="ipma_month_sel",
     )
     st.session_state.ipma_month = month_sel
 
@@ -1645,6 +1646,7 @@ elif section == "🌦️ IPMA — Meteo":
         "Dia",
         options=days,
         index=days.index(st.session_state.ipma_day) if st.session_state.ipma_day in days else len(days) - 1,
+        key="ipma_day_sel",
     )
     st.session_state.ipma_day = day_sel
 
@@ -1658,116 +1660,101 @@ elif section == "🌦️ IPMA — Meteo":
         st.info("Dados não disponíveis :(")
         st.stop()
 
-    # filtro por janela operacional: D-1 17:00 -> D 16:00
+    # =========================
+    # Datetime + janela operacional (D-1 17:00 -> D 16:00) + fallback
+    # =========================
     dt_col = pick_datetime_column(df_ipma)
-    df_show = df_ipma.copy()
-    
     if dt_col is None:
         st.info("Dados não disponíveis :(")
         st.stop()
-    
-    dt = pd.to_datetime(df_show[dt_col], errors="coerce", dayfirst=True, format="mixed")
-    df_show["_dt"] = dt
+
+    df_show = df_ipma.copy()
+    df_show["_dt"] = pd.to_datetime(df_show[dt_col], errors="coerce", dayfirst=True, format="mixed")
     df_show = df_show[df_show["_dt"].notna()].copy()
-    
+
     if df_show.empty:
         st.info("Dados não disponíveis :(")
         st.stop()
-        
-    
+
     start_dt, end_dt = ipma_operational_window(day_sel)
-    
+
     # 1) tenta janela operacional
     df_win = df_show[(df_show["_dt"] >= start_dt) & (df_show["_dt"] <= end_dt)].copy()
-    
-    # 2) se não houver nada, faz fallback para o intervalo real do ficheiro
+
+    # 2) fallback: se janela não tiver dados, usa intervalo real do ficheiro (sem caption)
     if df_win.empty:
-        dt_min = df_show["_dt"].min()
-        dt_max = df_show["_dt"].max()
-        if pd.isna(dt_min) or pd.isna(dt_max):
-            st.info("Dados não disponíveis :(")
-            st.stop()
-    
-        st.caption(
-            f"Janela operacional sem dados. A mostrar intervalo real do ficheiro: "
-            f"{dt_min:%d-%m-%Y %H:%M} → {dt_max:%d-%m-%Y %H:%M}"
-        )
         df_win = df_show.copy()
-    #else:
-        #st.caption(f"Janela aplicada: {start_dt:%d-%m-%Y %H:%M} → {end_dt:%d-%m-%Y %H:%M}")
-    
-    # a partir daqui, usa df_win como base
+
     df_show = df_win
-    
-    # 3) slider por intervalo REAL (data+hora) — adapta-se sempre
-    use_subrange = st.checkbox("Filtrar por período", value=False)
+
+    if df_show.empty:
+        st.info("Dados não disponíveis :(")
+        st.stop()
+
+    # =========================
+    # Filtro por período (slider datetime adaptativo)
+    # =========================
+    use_subrange = st.checkbox("Filtrar por período", value=False, key="ipma_use_subrange")
     if use_subrange:
         dt_min = df_show["_dt"].min()
         dt_max = df_show["_dt"].max()
-    
+
+        if pd.isna(dt_min) or pd.isna(dt_max):
+            st.info("Dados não disponíveis :(")
+            st.stop()
+
         t0, t1 = st.slider(
             "Período (data e hora)",
             min_value=dt_min.to_pydatetime(),
             max_value=dt_max.to_pydatetime(),
             value=(dt_min.to_pydatetime(), dt_max.to_pydatetime()),
             format="DD-MM-YYYY HH:mm",
+            key="ipma_dt_slider",
         )
-    
+
         df_show = df_show[(df_show["_dt"] >= t0) & (df_show["_dt"] <= t1)].copy()
         if df_show.empty:
             st.info("Dados não disponíveis :(")
             st.stop()
-    
-    df_show = df_show.drop(columns=["_dt"], errors="ignore")
 
-    # escolher colunas
-    all_cols = list(df_show.columns)
-    default_cols = all_cols[:12] if len(all_cols) > 12 else all_cols
-    show_cols = st.multiselect("Colunas", options=all_cols, default=default_cols, key="ipma_cols_sel")
-
-    # --------
-    # Filtro por local (station_name ou station_id)
-    # --------
+    # =========================
+    # Filtro por local (default: nenhum selecionado = todos)
+    # =========================
+    loc_col = None
     for cand in ["station_name", "station_id"]:
         if cand in df_show.columns:
             loc_col = cand
             break
-    
+
     if loc_col is not None:
         opts = sorted(df_show[loc_col].dropna().astype(str).unique())
         sel_loc = st.multiselect("Local", options=opts, default=[], key="ipma_loc_sel")
-        if sel_loc:  # só filtra se escolheres algo
+        if sel_loc:  # só filtra se escolheres
             df_show = df_show[df_show[loc_col].astype(str).isin(sel_loc)].copy()
+            if df_show.empty:
+                st.info("Dados não disponíveis :(")
+                st.stop()
 
+    # já não precisamos do _dt na tabela
+    df_show = df_show.drop(columns=["_dt"], errors="ignore")
 
+    # =========================
+    # Colunas visíveis + tabela
+    # =========================
+    all_cols = list(df_show.columns)
+    default_cols = all_cols[:12] if len(all_cols) > 12 else all_cols
 
-    if st.session_state.table_filters_applied and st.session_state.table_ui_state:
-        filtered = apply_filters(df_base, st.session_state.table_ui_state)
-    else:
-        filtered = df_base.copy()
-
-    all_cols = list(filtered.columns)
-    prefer = [
-        "_id", "dados/Data", "dados/Hora", "dados/N_Semana", "dados/Local",
-        "Amostragem/Espécie", "Amostragem/Outra_Esp_cie", "Amostragem/Espécie_final",
-        "Amostragem/N_Indiv_duos", "Amostragem/Notas"
-    ]
-    default_show = [c for c in prefer if c in all_cols]
-    if len(default_show) < 6:
-        default_show = all_cols[:20] if len(all_cols) >= 20 else all_cols
-
-    show_cols = st.multiselect("Colunas visíveis", options=all_cols, default=default_show, key="table_show_cols")
-
-    st.dataframe(filtered[show_cols], width="stretch", height=560)
-
-    buffer = io.BytesIO()
-    with pd.ExcelWriter(buffer, engine="openpyxl") as writer:
-        filtered[show_cols].to_excel(writer, index=False, sheet_name="Dados Filtrados")
-    buffer.seek(0)
-
-    st.download_button(
-        "⬇️ Exportar Excel (dados filtrados)",
-        data=buffer,
-        file_name="kobo_dados_filtrados.xlsx",
-        mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    show_cols = st.multiselect(
+        "Colunas",
+        options=all_cols,
+        default=default_cols,
+        key="ipma_cols_sel",
     )
+
+    if not show_cols:
+        st.info("Dados não disponíveis :(")
+        st.stop()
+
+    st.dataframe(df_show[show_cols], width="stretch", height=650)
+
+    st.stop()
