@@ -1640,7 +1640,7 @@ elif section == "🌦️ IPMA — Meteo":
             f"{dt_min:%d-%m-%Y %H:%M} → {dt_max:%d-%m-%Y %H:%M}"
         )
         df_win = df_show.copy()
-    else:
+    #else:
         #st.caption(f"Janela aplicada: {start_dt:%d-%m-%Y %H:%M} → {end_dt:%d-%m-%Y %H:%M}")
     
     # a partir daqui, usa df_win como base
