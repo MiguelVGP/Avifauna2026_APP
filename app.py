@@ -1620,23 +1620,47 @@ elif section == "🌦️ IPMA — Meteo":
     if df_show.empty:
         st.info("Dados não disponíveis :(")
         st.stop()
+        
     
     start_dt, end_dt = ipma_operational_window(day_sel)
-    df_show = df_show[(df_show["_dt"] >= start_dt) & (df_show["_dt"] <= end_dt)].copy()
     
-    st.caption(f"Janela aplicada: {start_dt:%d-%m-%Y %H:%M} → {end_dt:%d-%m-%Y %H:%M}")
+    # 1) tenta janela operacional
+    df_win = df_show[(df_show["_dt"] >= start_dt) & (df_show["_dt"] <= end_dt)].copy()
     
-    if df_show.empty:
-        st.info("Dados não disponíveis :(")
-        st.stop()
+    # 2) se não houver nada, faz fallback para o intervalo real do ficheiro
+    if df_win.empty:
+        dt_min = df_show["_dt"].min()
+        dt_max = df_show["_dt"].max()
+        if pd.isna(dt_min) or pd.isna(dt_max):
+            st.info("Dados não disponíveis :(")
+            st.stop()
     
-    # (opcional) slider dentro da janela, em horas desde o início (0..23)
-    use_subrange = st.checkbox("Filtrar por período dentro do dia operacional", value=False)
+        st.caption(
+            f"Janela operacional sem dados. A mostrar intervalo real do ficheiro: "
+            f"{dt_min:%d-%m-%Y %H:%M} → {dt_max:%d-%m-%Y %H:%M}"
+        )
+        df_win = df_show.copy()
+    else:
+        st.caption(f"Janela aplicada: {start_dt:%d-%m-%Y %H:%M} → {end_dt:%d-%m-%Y %H:%M}")
+    
+    # a partir daqui, usa df_win como base
+    df_show = df_win
+    
+    # 3) slider por intervalo REAL (data+hora) — adapta-se sempre
+    use_subrange = st.checkbox("Filtrar por período", value=False)
     if use_subrange:
-        h0, h1 = st.slider("Período (horas desde 17:00)", 0, 23, (0, 23), step=1)
-        sub_start = start_dt + timedelta(hours=int(h0))
-        sub_end   = start_dt + timedelta(hours=int(h1) + 1)  # +1 para incluir a hora final
-        df_show = df_show[(df_show["_dt"] >= sub_start) & (df_show["_dt"] < sub_end)].copy()
+        dt_min = df_show["_dt"].min()
+        dt_max = df_show["_dt"].max()
+    
+        t0, t1 = st.slider(
+            "Período (data e hora)",
+            min_value=dt_min.to_pydatetime(),
+            max_value=dt_max.to_pydatetime(),
+            value=(dt_min.to_pydatetime(), dt_max.to_pydatetime()),
+            format="DD-MM-YYYY HH:mm",
+        )
+    
+        df_show = df_show[(df_show["_dt"] >= t0) & (df_show["_dt"] <= t1)].copy()
         if df_show.empty:
             st.info("Dados não disponíveis :(")
             st.stop()
