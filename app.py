@@ -364,6 +364,19 @@ def build_matrix_pdf(title: str, matrix_df: pd.DataFrame) -> bytes:
 # =========================
 # IPMA — Meteo (subpastas por mês, ex. assets/ipma/JAN2026/14-01-2026.csv)
 # =========================
+from datetime import datetime, timedelta
+
+def ipma_operational_window(day_str: str):
+    """
+    day_str: '14-01-2026'
+    retorna (start_dt, end_dt):
+      13-01-2026 17:00  ->  14-01-2026 16:00
+    """
+    d = datetime.strptime(day_str, "%d-%m-%Y")
+    start_dt = (d - timedelta(days=1)).replace(hour=17, minute=0, second=0, microsecond=0)
+    end_dt   = d.replace(hour=16, minute=0, second=0, microsecond=0)
+    return start_dt, end_dt
+    
 from pathlib import Path
 import re
 
@@ -1592,19 +1605,43 @@ elif section == "🌦️ IPMA — Meteo":
         st.info("Dados não disponíveis :(")
         st.stop()
 
-    # filtro por hora (0..23) se houver coluna datetime
+    # filtro por janela operacional: D-1 17:00 -> D 16:00
     dt_col = pick_datetime_column(df_ipma)
     df_show = df_ipma.copy()
-
-    if dt_col is not None:
-        dt = pd.to_datetime(df_show[dt_col], errors="coerce", dayfirst=True, format="mixed")
-        df_show["_dt"] = dt
-        df_show = df_show[df_show["_dt"].notna()].copy()
-        if not df_show.empty:
-            h_min, h_max = st.slider("Hora (intervalo)", 0, 23, (0, 23), step=1)
-            hours = df_show["_dt"].dt.hour
-            df_show = df_show[(hours >= h_min) & (hours <= h_max)].copy()
-        df_show = df_show.drop(columns=["_dt"], errors="ignore")
+    
+    if dt_col is None:
+        st.info("Dados não disponíveis :(")
+        st.stop()
+    
+    dt = pd.to_datetime(df_show[dt_col], errors="coerce", dayfirst=True, format="mixed")
+    df_show["_dt"] = dt
+    df_show = df_show[df_show["_dt"].notna()].copy()
+    
+    if df_show.empty:
+        st.info("Dados não disponíveis :(")
+        st.stop()
+    
+    start_dt, end_dt = ipma_operational_window(day_sel)
+    
+    # aplica janela (inclui limites)
+    df_show = df_show[(df_show["_dt"] >= start_dt) & (df_show["_dt"] <= end_dt)].copy()
+    
+    if df_show.empty:
+        st.info("Dados não disponíveis :(")
+        st.stop()
+    
+    # (opcional) slider dentro da janela, em horas desde o início (0..23)
+    use_subrange = st.checkbox("Filtrar por período dentro do dia operacional", value=False)
+    if use_subrange:
+        h0, h1 = st.slider("Período (horas desde 17:00)", 0, 23, (0, 23), step=1)
+        sub_start = start_dt + timedelta(hours=int(h0))
+        sub_end   = start_dt + timedelta(hours=int(h1) + 1)  # +1 para incluir a hora final
+        df_show = df_show[(df_show["_dt"] >= sub_start) & (df_show["_dt"] < sub_end)].copy()
+        if df_show.empty:
+            st.info("Dados não disponíveis :(")
+            st.stop()
+    
+    df_show = df_show.drop(columns=["_dt"], errors="ignore")
 
     # escolher colunas
     all_cols = list(df_show.columns)
