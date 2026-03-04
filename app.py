@@ -1622,9 +1622,9 @@ elif section == "🌦️ IPMA — Meteo":
         st.stop()
     
     start_dt, end_dt = ipma_operational_window(day_sel)
-    
-    # aplica janela (inclui limites)
     df_show = df_show[(df_show["_dt"] >= start_dt) & (df_show["_dt"] <= end_dt)].copy()
+    
+    st.caption(f"Janela aplicada: {start_dt:%d-%m-%Y %H:%M} → {end_dt:%d-%m-%Y %H:%M}")
     
     if df_show.empty:
         st.info("Dados não disponíveis :(")
