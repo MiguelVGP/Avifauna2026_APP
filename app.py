@@ -1641,7 +1641,7 @@ elif section == "🌦️ IPMA — Meteo":
         )
         df_win = df_show.copy()
     else:
-        st.caption(f"Janela aplicada: {start_dt:%d-%m-%Y %H:%M} → {end_dt:%d-%m-%Y %H:%M}")
+        #st.caption(f"Janela aplicada: {start_dt:%d-%m-%Y %H:%M} → {end_dt:%d-%m-%Y %H:%M}")
     
     # a partir daqui, usa df_win como base
     df_show = df_win
