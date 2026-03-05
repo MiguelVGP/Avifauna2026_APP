@@ -1703,12 +1703,15 @@ elif section == "🌦️ IPMA — Meteo":
             st.info("Dados não disponíveis :(")
             st.stop()
 
+        from datetime import timedelta  # garante que está importado
+
         t0, t1 = st.slider(
             "Período (data e hora)",
             min_value=dt_min.to_pydatetime(),
             max_value=dt_max.to_pydatetime(),
             value=(dt_min.to_pydatetime(), dt_max.to_pydatetime()),
             format="DD-MM-YYYY HH:mm",
+            step=timedelta(hours=1),   # ✅ de 1 em 1 hora
             key="ipma_dt_slider",
         )
 
