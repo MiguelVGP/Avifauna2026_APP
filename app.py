@@ -1758,6 +1758,75 @@ elif section == "🌦️ IPMA — Meteo":
         st.info("Dados não disponíveis :(")
         st.stop()
 
-    st.dataframe(df_show[show_cols], width="stretch", height=650)
-
+    # =========================
+    # OUTPUT em texto (por estação e por hora)
+    # =========================
+    # 1) identificar colunas
+    station_col = "station_name" if "station_name" in df_show.columns else None
+    dt_src_col = dt_col if dt_col in df_show.columns else ("obs_datetime" if "obs_datetime" in df_show.columns else None)
+    
+    vento_col = "intensidadeVento" if "intensidadeVento" in df_show.columns else None   # m/s (pelo que mostras na imagem)
+    temp_col  = "temperatura" if "temperatura" in df_show.columns else None
+    hum_col   = "humidade" if "humidade" in df_show.columns else None
+    
+    needed = [station_col, dt_src_col, vento_col, temp_col, hum_col]
+    if any(c is None for c in needed):
+        st.info("Dados não disponíveis :(")
+        st.stop()
+    
+    # 2) preparar dados
+    out = df_show[[station_col, dt_src_col, vento_col, temp_col, hum_col]].copy()
+    out["_dt"] = pd.to_datetime(out[dt_src_col], errors="coerce", dayfirst=True, format="mixed")
+    out = out[out["_dt"].notna()].copy()
+    if out.empty:
+        st.info("Dados não disponíveis :(")
+        st.stop()
+    
+    # arredondar para hora (para “de 1 em 1 hora”)
+    out["_hour"] = out["_dt"].dt.floor("H")
+    
+    # garantir numéricos
+    for c in [vento_col, temp_col, hum_col]:
+        out[c] = pd.to_numeric(out[c], errors="coerce")
+    
+    # 3) agregar por estação+hora (média; se preferires o primeiro valor, digo-te já a troca)
+    agg = (
+        out.groupby([station_col, "_hour"], dropna=False)[[vento_col, temp_col, hum_col]]
+        .mean()
+        .reset_index()
+        .sort_values([station_col, "_hour"])
+    )
+    
+    if agg.empty:
+        st.info("Dados não disponíveis :(")
+        st.stop()
+    
+    # 4) mostrar seleção (só o nome das estações + horas)
+    stations_txt = ", ".join(sorted(agg[station_col].dropna().astype(str).unique()))
+    hours_txt = ", ".join(sorted(agg["_hour"].dt.strftime("%H:%M").unique()))
+    st.caption(f"Estações: {stations_txt}")
+    st.caption(f"Horas: {hours_txt}")
+    
+    st.divider()
+    
+    # 5) render em texto (por estação)
+    for st_name, g in agg.groupby(station_col, dropna=False):
+        st.markdown(f"### {st_name}")
+    
+        for _, r in g.iterrows():
+            hh = r["_hour"].strftime("%H:%M")
+            vento = r[vento_col]
+            temp = r[temp_col]
+            hum = r[hum_col]
+    
+            # format bonitinho (trata NaN)
+            def fnum(x, nd=1):
+                return "-" if pd.isna(x) else f"{x:.{nd}f}"
+    
+            st.write(
+                f"**{hh}**  ·  Vento: **{fnum(vento, 1)} m/s**"
+                f"  ·  Temperatura: **{fnum(temp, 1)} °C**"
+                f"  ·  Humidade: **{fnum(hum, 0)} %**"
+            )
+    
     st.stop()
