@@ -1804,8 +1804,8 @@ elif section == "🌦️ IPMA — Meteo":
     # 4) mostrar seleção (só o nome das estações + horas)
     stations_txt = ", ".join(sorted(agg[station_col].dropna().astype(str).unique()))
     hours_txt = ", ".join(sorted(agg["_hour"].dt.strftime("%H:%M").unique()))
-    st.caption(f"Estações: {stations_txt}")
-    st.caption(f"Horas: {hours_txt}")
+    #st.caption(f"Estações: {stations_txt}")
+    #st.caption(f"Horas: {hours_txt}")
     
     st.divider()
     
