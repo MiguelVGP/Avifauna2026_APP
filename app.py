@@ -1744,19 +1744,19 @@ elif section == "🌦️ IPMA — Meteo":
     # =========================
     # Colunas visíveis + tabela
     # =========================
-    all_cols = list(df_show.columns)
-    default_cols = all_cols[:12] if len(all_cols) > 12 else all_cols
+    #all_cols = list(df_show.columns)
+    #default_cols = all_cols[:12] if len(all_cols) > 12 else all_cols
 
-    show_cols = st.multiselect(
-        "Colunas",
-        options=all_cols,
-        default=default_cols,
-        key="ipma_cols_sel",
-    )
+    #show_cols = st.multiselect(
+        #"Colunas",
+        #options=all_cols,
+        #default=default_cols,
+        #key="ipma_cols_sel",
+    #)
 
-    if not show_cols:
-        st.info("Dados não disponíveis :(")
-        st.stop()
+    #if not show_cols:
+        #st.info("Dados não disponíveis :(")
+        #st.stop()
 
     # =========================
     # OUTPUT em texto (por estação e por hora)
