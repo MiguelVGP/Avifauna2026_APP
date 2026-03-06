@@ -1678,14 +1678,8 @@ elif section == "🌦️ IPMA — Meteo":
 
     start_dt, end_dt = ipma_operational_window(day_sel)
 
-    # 1) tenta janela operacional
-    df_win = df_show[(df_show["_dt"] >= start_dt) & (df_show["_dt"] <= end_dt)].copy()
-
-    # 2) fallback: se janela não tiver dados, usa intervalo real do ficheiro (sem caption)
-    if df_win.empty:
-        df_win = df_show.copy()
-
-    df_show = df_win
+    # usar sempre o intervalo real do ficheiro
+    df_show = df_show.copy()
 
     if df_show.empty:
         st.info("Dados não disponíveis :(")
